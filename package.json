@@ -1,19 +1,75 @@
 {
-  "name": "sistema-calzado-electron",
+  "name": "sistema-calzado",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Sistema de gestión para calzado",
+  "main": "electron/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently -n \"BACKEND,FRONTEND,ELECTRON\" -c \"bgBlue,bgMagenta,bgGreen\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:electron": "node scripts/wait-and-start.js",
+    "start": "npx electron .",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npx prisma generate",
+    "electron:build": "npm run build && electron-builder"
   },
-  "keywords": [],
+  "keywords": [
+    "electron",
+    "calzado",
+    "gestión"
+  ],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "electron-store": "^8.1.0",
+    "mysql2": "^3.15.3"
+  },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "electron": "^39.0.0",
-    "electron-builder": "^26.0.12",
-    "electron-updater": "^6.6.2",
-    "wait-on": "^9.0.1"
+    "concurrently": "^8.2.2",
+    "electron": "^29.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-updater": "^6.1.7",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.calzado.sistema",
+    "productName": "Sistema Calzado",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "backend/src/**/*",
+      "backend/node_modules/**/*",
+      "backend/prisma/**/*",
+      "database/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "database",
+        "to": "database"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "resources/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "resources/icon.png"
+    }
   }
 }

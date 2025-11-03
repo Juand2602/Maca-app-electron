@@ -1,3 +1,4 @@
+// frontend/src/services/accountingService.js
 import api from './api'
 
 export const accountingService = {
@@ -6,7 +7,7 @@ export const accountingService = {
   // Obtener todas las facturas
   async getInvoices(params = {}) {
     try {
-      const response = await api.get('/accounting/invoices', { params })
+      const response = await api.get('/invoices', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener facturas:', error)
@@ -17,7 +18,7 @@ export const accountingService = {
   // Obtener factura por ID
   async getInvoiceById(id) {
     try {
-      const response = await api.get(`/accounting/invoices/${id}`)
+      const response = await api.get(`/invoices/${id}`)
       return response.data
     } catch (error) {
       console.error('Error al obtener factura:', error)
@@ -29,7 +30,7 @@ export const accountingService = {
   async createInvoice(invoiceData) {
     try {
       console.log('Enviando datos al backend:', invoiceData)
-      const response = await api.post('/accounting/invoices', invoiceData)
+      const response = await api.post('/invoices', invoiceData)
       console.log('Respuesta del backend:', response.data)
       
       // El backend devuelve directamente la factura creada
@@ -62,7 +63,7 @@ export const accountingService = {
   // Eliminar factura
   async deleteInvoice(id) {
     try {
-      const response = await api.delete(`/accounting/invoices/${id}`)
+      const response = await api.delete(`/invoices/${id}`)
       return response.data
     } catch (error) {
       console.error('Error al eliminar factura:', error)
@@ -73,7 +74,7 @@ export const accountingService = {
   // Obtener facturas por estado
   async getInvoicesByStatus(status) {
     try {
-      const response = await api.get(`/accounting/invoices/status/${status}`)
+      const response = await api.get(`/invoices/status/${status}`)
       return response.data
     } catch (error) {
       console.error('Error al obtener facturas por estado:', error)
@@ -84,7 +85,7 @@ export const accountingService = {
   // Obtener facturas por proveedor
   async getInvoicesByProvider(providerId) {
     try {
-      const response = await api.get(`/accounting/invoices/provider/${providerId}`)
+      const response = await api.get(`/invoices/provider/${providerId}`)
       return response.data
     } catch (error) {
       console.error('Error al obtener facturas del proveedor:', error)
@@ -95,7 +96,7 @@ export const accountingService = {
   // Obtener facturas vencidas
   async getOverdueInvoices() {
     try {
-      const response = await api.get('/accounting/invoices/overdue')
+      const response = await api.get('/invoices/overdue')
       return response.data
     } catch (error) {
       console.error('Error al obtener facturas vencidas:', error)
@@ -109,7 +110,7 @@ export const accountingService = {
   async createPayment(paymentData) {
     try {
       // El token ya se agrega automáticamente en el interceptor de axios
-      const response = await api.post('/accounting/payments', paymentData)
+      const response = await api.post('/payments', paymentData)
       
       // Si llegamos aquí, la petición fue exitosa (código 2xx)
       // Devolvemos los datos de la respuesta o un objeto de éxito genérico
@@ -142,7 +143,7 @@ export const accountingService = {
   // Obtener pagos por factura
   async getPaymentsByInvoice(invoiceId) {
     try {
-      const response = await api.get(`/accounting/payments/invoice/${invoiceId}`)
+      const response = await api.get(`/payments/invoice/${invoiceId}`)
       return response.data
     } catch (error) {
       console.error('Error al obtener pagos de la factura:', error)
@@ -155,7 +156,7 @@ export const accountingService = {
   // Obtener estadísticas generales
   async getAccountingStats(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/summary', { params })
+      const response = await api.get('/reports/summary', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener estadísticas:', error)
@@ -166,7 +167,7 @@ export const accountingService = {
   // Obtener reporte de balance general
   async getBalanceSheet(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/balance-sheet', { params })
+      const response = await api.get('/reports/balance-sheet', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener balance general:', error)
@@ -177,7 +178,7 @@ export const accountingService = {
   // Obtener reporte de cuentas por pagar
   async getAccountsPayable(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/accounts-payable', { params })
+      const response = await api.get('/reports/accounts-payable', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener cuentas por pagar:', error)
@@ -188,7 +189,7 @@ export const accountingService = {
   // Obtener reporte de flujo de caja
   async getCashFlow(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/cash-flow', { params })
+      const response = await api.get('/reports/cash-flow', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener flujo de caja:', error)
@@ -199,7 +200,7 @@ export const accountingService = {
   // Obtener reporte de ingresos
   async getIncomeStatement(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/income-statement', { params })
+      const response = await api.get('/reports/income-statement', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener estado de resultados:', error)
@@ -210,7 +211,7 @@ export const accountingService = {
   // Obtener reporte por proveedor
   async getProviderReport(providerId, params = {}) {
     try {
-      const response = await api.get(`/accounting/reports/provider/${providerId}`, { params })
+      const response = await api.get(`/reports/provider/${providerId}`, { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener reporte del proveedor:', error)
@@ -221,7 +222,7 @@ export const accountingService = {
   // Obtener reporte de vencimientos
   async getDueDatesReport(params = {}) {
     try {
-      const response = await api.get('/accounting/reports/due-dates', { params })
+      const response = await api.get('/reports/due-dates', { params })
       return response.data
     } catch (error) {
       console.error('Error al obtener reporte de vencimientos:', error)
@@ -234,7 +235,7 @@ export const accountingService = {
   // Exportar facturas a Excel
   async exportInvoicesToExcel(params = {}) {
     try {
-      const response = await api.get('/accounting/exports/invoices/excel', { 
+      const response = await api.get('/exports/invoices/excel', { 
         params,
         responseType: 'blob'
       })
@@ -248,7 +249,7 @@ export const accountingService = {
   // Exportar reporte a PDF
   async exportReportToPdf(reportType, params = {}) {
     try {
-      const response = await api.get(`/accounting/exports/reports/${reportType}/pdf`, { 
+      const response = await api.get(`/exports/reports/${reportType}/pdf`, { 
         params,
         responseType: 'blob'
       })
@@ -264,7 +265,7 @@ export const accountingService = {
   // Obtener configuración contable
   async getAccountingSettings() {
     try {
-      const response = await api.get('/accounting/settings')
+      const response = await api.get('/settings')
       return response.data
     } catch (error) {
       console.error('Error al obtener configuración:', error)
@@ -275,7 +276,7 @@ export const accountingService = {
   // Actualizar configuración contable
   async updateAccountingSettings(settings) {
     try {
-      const response = await api.put('/accounting/settings', settings)
+      const response = await api.put('/settings', settings)
       return response.data
     } catch (error) {
       console.error('Error al actualizar configuración:', error)
@@ -288,7 +289,7 @@ export const accountingService = {
   // Validar número de factura único
   async validateInvoiceNumber(invoiceNumber, excludeId = null) {
     try {
-      const response = await api.post('/accounting/invoices/validate-number', {
+      const response = await api.post('/invoices/validate-number', {
         invoiceNumber,
         excludeId
       })

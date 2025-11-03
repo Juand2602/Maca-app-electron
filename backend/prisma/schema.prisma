@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../../database/calzado.db"
+}
+
+// ============= USUARIOS Y AUTENTICACIÓN =============
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  fullName  String   @map("full_name")
+  role      Role     @default(EMPLOYEE)
+  isActive  Boolean  @default(true) @map("is_active")
+  lastLogin DateTime? @map("last_login")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relación con Employee (uno a uno)
+  employee  Employee? @relation(fields: [employeeId], references: [id])
+  employeeId Int?     @unique @map("employee_id")
+
+  // Relaciones inversas con Sale e Invoice
+  sales     Sale[]
+  invoices  Invoice[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+  MANAGER
+}
+
+// ============= EMPLEADOS =============
+
+model Employee {
+  id          Int            @id @default(autoincrement())
+  
+  // Información Personal
+  document    String         @unique
+  firstName   String         @map("first_name")
+  lastName    String         @map("last_name")
+  birthDate   DateTime?      @map("birth_date")
+  gender      String?
+  maritalStatus String?      @map("marital_status")
+  address     String?
+  city        String?
+  department  String?
+  phone       String?
+  email       String         @unique
+  
+  // Información Laboral
+  position    String?
+  hireDate    DateTime?      @map("hire_date")
+  salary      Float?
+  workSchedule String?       @map("work_schedule")
+  contractType String?       @map("contract_type")
+  
+  // Contacto de Emergencia
+  emergencyContactName String?         @map("emergency_contact_name")
+  emergencyContactPhone String?        @map("emergency_contact_phone")
+  emergencyContactRelationship String? @map("emergency_contact_relationship")
+  
+  // Estado y Notas
+  status      EmployeeStatus @default(ACTIVE)
+  notes       String?
+  
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  // Relación inversa con User (uno a uno)
+  user        User?
+
+  @@map("employees")
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  VACATION
+  SUSPENDED
+}
+
+// ============= PROVEEDORES =============
+
+model Provider {
+  id            Int       @id @default(autoincrement())
+  document      String    @unique
+  name          String
+  businessName  String?   @map("business_name")
+  contactName   String?   @map("contact_name")
+  email         String?
+  phone         String?
+  mobile        String?
+  address       String?
+  city          String?
+  country       String?
+  paymentTerms  String?   @map("payment_terms")
+  paymentDays   Int?      @map("payment_days")
+  isActive      Boolean   @default(true) @map("is_active")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones futuras con facturas/compras
+  invoices      Invoice[]
+
+  @@map("providers")
+}
+
+// ============= PRODUCTOS =============
+
+model Product {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique
+  name          String
+  description   String?
+  brand         String
+  category      String
+  color         String
+  material      String
+  purchasePrice Float          @map("purchase_price")
+  salePrice     Float          @map("sale_price")
+  minStock      Int            @default(5) @map("min_stock")
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // Relaciones
+  stocks        ProductStock[]
+  saleItems     SaleItem[]
+
+  @@map("products")
+}
+
+model ProductStock {
+  id               Int     @id @default(autoincrement())
+  productId        Int     @map("product_id")
+  size             String
+  quantity         Int     @default(0)
+  reservedQuantity Int     @default(0) @map("reserved_quantity")
+
+  // Relación con Product
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, size])
+  @@map("product_stock")
+}
+
+// ============= VENTAS (para referencia futura) =============
+
+model Sale {
+  id            Int        @id @default(autoincrement())
+  saleNumber    String     @unique @map("sale_number")
+  saleDate      DateTime   @default(now()) @map("sale_date")
+  customerName  String?    @map("customer_name")
+  customerEmail String?    @map("customer_email")
+  customerPhone String?    @map("customer_phone")
+  subtotal      Float
+  tax           Float      @default(0)
+  discount      Float      @default(0)
+  total         Float
+  status        SaleStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  userId        Int?       @map("user_id")
+  user          User?      @relation(fields: [userId], references: [id])
+
+  items         SaleItem[]
+  payments      SalePayment[]
+
+  @@map("sales")
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+model SaleItem {
+  id          Int      @id @default(autoincrement())
+  quantity    Int
+  unitPrice   Float    @map("unit_price")
+  discount    Float    @default(0)
+  subtotal    Float
+  size        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  saleId      Int      @map("sale_id")
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId   Int      @map("product_id")
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model SalePayment {
+  id            Int           @id @default(autoincrement())
+  amount        Float
+  paymentMethod PaymentMethod @map("payment_method")
+  paymentDate   DateTime      @default(now()) @map("payment_date")
+  reference     String?
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  saleId        Int           @map("sale_id")
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("sale_payments")
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  TRANSFER
+  CHECK
+}
+
+// ============= FACTURAS/COMPRAS (para referencia futura) =============
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  invoiceNumber String        @unique @map("invoice_number")
+  invoiceDate   DateTime      @default(now()) @map("invoice_date")
+  dueDate       DateTime      @map("due_date")
+  subtotal      Float
+  tax           Float
+  total         Float
+  status        InvoiceStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  providerId    Int?          @map("provider_id")
+  provider      Provider?     @relation(fields: [providerId], references: [id])
+
+  userId        Int?          @map("user_id")
+  user          User?         @relation(fields: [userId], references: [id])
+
+  payments      InvoicePayment[]
+
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model InvoicePayment {
+  id            Int           @id @default(autoincrement())
+  amount        Float
+  paymentMethod PaymentMethod @map("payment_method")
+  paymentDate   DateTime      @default(now()) @map("payment_date")
+  reference     String?
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  invoiceId     Int           @map("invoice_id")
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_payments")
+}
