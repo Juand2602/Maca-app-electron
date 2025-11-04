@@ -1,0 +1,108 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger en tags tipo v1.0.0, v1.2.3, etc.
+
+jobs:
+  release:
+    runs-on: windows-latest  # Solo Windows
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ===== INSTALAR DEPENDENCIAS =====
+      
+      - name: 📦 Install root dependencies
+        run: npm ci
+
+      - name: 📦 Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: 📦 Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ===== GENERAR PRISMA CLIENT =====
+      
+      - name: 🗄️ Generate Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
+      # ===== BUILD FRONTEND =====
+      
+      - name: 🔨 Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # ===== BUILD ELECTRON =====
+      
+      - name: 📱 Build Electron App
+        run: npm run electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ===== GET VERSION =====
+      
+      - name: 📋 Get version
+        id: version
+        run: |
+          $version = node -p "require('./package.json').version"
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      # ===== CREATE RELEASE =====
+      
+      - name: 🚀 Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist-electron/*.exe
+            dist-electron/*.yml
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 🎉 Sistema Calzado - Versión ${{ steps.version.outputs.VERSION }}
+            
+            ### 📥 Instalación
+            1. Descarga `Sistema-Calzado-Setup-${{ steps.version.outputs.VERSION }}.exe`
+            2. Ejecuta el instalador
+            3. Sigue las instrucciones en pantalla
+            4. Al abrir, activa tu licencia
+            
+            ### 🔄 Actualización automática
+            Si ya tienes la aplicación instalada:
+            - Se actualizará automáticamente al iniciar
+            - Recibirás una notificación cuando esté disponible
+            
+            ### 🔐 Licencias
+            - Cada instalación requiere una licencia válida
+            - La licencia se vincula al equipo donde se activa
+            - Contacta a soporte para obtener tu licencia
+            
+            ### 📝 Cambios en esta versión
+            Ver notas de lanzamiento automáticas abajo.
+            
+            ---
+            
+            **⚠️ Requisitos:**
+            - Windows 10/11 (64-bit)
+            - 4GB RAM mínimo
+            - 500MB espacio en disco
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Success
+        run: |
+          echo "✅ Release v${{ steps.version.outputs.VERSION }} created successfully!"
+          echo "📦 Instalador disponible en GitHub Releases"
