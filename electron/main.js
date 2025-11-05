@@ -1,14 +1,24 @@
 // electron/main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const axios = require('axios');
+const log = require('electron-log');
 
 let mainWindow;
 let backendProcess;
 const BACKEND_PORT = 3000;
 const FRONTEND_PORT = 5173;
+
+// ============= LOGGING =============
+
+// Configurar logging para auto-updater
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+
+log.info('App starting...');
 
 // ============= BACKEND MANAGEMENT =============
 
@@ -252,7 +262,10 @@ async function initializeApp() {
     
     // Auto-updater (solo en producción)
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify();
+      log.info('Setting up auto-updater...');
+      setupAutoUpdater();
+    } else {
+      log.info('Development mode - auto-updater disabled');
     }
     
   } catch (error) {
@@ -320,16 +333,28 @@ ipcMain.handle('get-app-version', () => {
 });
 
 // Auto-updater events
-autoUpdater.on('update-available', () => {
-  mainWindow?.webContents.send('update-available');
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('update-available', info);
 });
 
-autoUpdater.on('update-downloaded', () => {
-  mainWindow?.webContents.send('update-downloaded');
+autoUpdater.on('update-downloaded', (info) => {
+  mainWindow?.webContents.send('update-downloaded', info);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  mainWindow?.webContents.send('download-progress', progressObj);
 });
 
 ipcMain.on('restart-app', () => {
-  autoUpdater.quitAndInstall();
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.on('check-for-updates', () => {
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdates();
+  } else {
+    mainWindow?.webContents.send('update-status', 'Auto-updater is disabled in development');
+  }
 });
 
 // ============= ERROR HANDLING =============
@@ -340,4 +365,4 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (error) => {
   console.error('Unhandled rejection:', error);
-});
+}); 
