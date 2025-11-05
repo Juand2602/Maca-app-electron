@@ -27,13 +27,13 @@
     "axios": "^1.6.0",
     "electron-log": "^5.0.0",
     "electron-store": "^8.1.0",
-    "mysql2": "^3.15.3"
+    "mysql2": "^3.15.3",
+    "electron-updater": "^6.1.7"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "electron": "^29.0.0",
     "electron-builder": "^24.9.1",
-    "electron-updater": "^6.1.7",
     "wait-on": "^7.2.0"
   },
   "build": {
@@ -45,10 +45,9 @@
     "files": [
       "electron/**/*",
       "frontend/dist/**/*",
-      "backend/src/**/*",
-      "backend/node_modules/**/*",
-      "backend/prisma/**/*",
-      "database/**/*"
+      "backend/dist/**/*",
+      "backend/node_modules/.prisma/**/*",
+      "backend/prisma/schema.prisma"
     ],
     "extraResources": [
       {
