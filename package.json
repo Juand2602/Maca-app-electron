@@ -5,7 +5,7 @@
   "main": "electron/main.js",
  
   "scripts": {
-    "dev": "concurrently -n \"BACKEND,FRONTEND,ELECTRON\" -c \"bgBlue,bgMagenta,bgGreen\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "dev": "concurrently -n \"FRONTEND,ELECTRON\" -c \"bgMagenta,bgGreen\" \"npm run dev:frontend\" \"npm run dev:electron\"",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:electron": "node scripts/wait-and-start.js",

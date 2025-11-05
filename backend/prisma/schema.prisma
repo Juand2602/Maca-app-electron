@@ -15,7 +15,7 @@ model User {
   email     String   @unique
   password  String
   fullName  String   @map("full_name")
-  role      Role     @default(EMPLOYEE)
+  role      String   @default("EMPLOYEE") // CAMBIADO: Role -> String
   isActive  Boolean  @default(true) @map("is_active")
   lastLogin DateTime? @map("last_login")
   createdAt DateTime @default(now()) @map("created_at")
@@ -32,11 +32,7 @@ model User {
   @@map("users")
 }
 
-enum Role {
-  ADMIN
-  EMPLOYEE
-  MANAGER
-}
+// La definición 'enum Role' ha sido eliminada
 
 // ============= EMPLEADOS =============
 
@@ -69,7 +65,7 @@ model Employee {
   emergencyContactRelationship String? @map("emergency_contact_relationship")
   
   // Estado y Notas
-  status      EmployeeStatus @default(ACTIVE)
+  status      String         @default("ACTIVE") // CAMBIADO: EmployeeStatus -> String
   notes       String?
   
   createdAt   DateTime       @default(now()) @map("created_at")
@@ -81,12 +77,7 @@ model Employee {
   @@map("employees")
 }
 
-enum EmployeeStatus {
-  ACTIVE
-  INACTIVE
-  VACATION
-  SUSPENDED
-}
+// La definición 'enum EmployeeStatus' ha sido eliminada
 
 // ============= PROVEEDORES =============
 
@@ -157,23 +148,23 @@ model ProductStock {
 // ============= VENTAS (para referencia futura) =============
 
 model Sale {
-  id            Int        @id @default(autoincrement())
-  saleNumber    String     @unique @map("sale_number")
-  saleDate      DateTime   @default(now()) @map("sale_date")
-  customerName  String?    @map("customer_name")
-  customerEmail String?    @map("customer_email")
-  customerPhone String?    @map("customer_phone")
+  id            Int      @id @default(autoincrement())
+  saleNumber    String   @unique @map("sale_number")
+  saleDate      DateTime @default(now()) @map("sale_date")
+  customerName  String?  @map("customer_name")
+  customerEmail String?  @map("customer_email")
+  customerPhone String?  @map("customer_phone")
   subtotal      Float
-  tax           Float      @default(0)
-  discount      Float      @default(0)
+  tax           Float    @default(0)
+  discount      Float    @default(0)
   total         Float
-  status        SaleStatus @default(PENDING)
+  status        String   @default("PENDING") // CAMBIADO: SaleStatus -> String
   notes         String?
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  userId        Int?       @map("user_id")
-  user          User?      @relation(fields: [userId], references: [id])
+  userId        Int?     @map("user_id")
+  user          User?    @relation(fields: [userId], references: [id])
 
   items         SaleItem[]
   payments      SalePayment[]
@@ -181,12 +172,7 @@ model Sale {
   @@map("sales")
 }
 
-enum SaleStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
-  REFUNDED
-}
+// La definición 'enum SaleStatus' ha sido eliminada
 
 model SaleItem {
   id          Int      @id @default(autoincrement())
@@ -207,73 +193,61 @@ model SaleItem {
 }
 
 model SalePayment {
-  id            Int           @id @default(autoincrement())
+  id            Int    @id @default(autoincrement())
   amount        Float
-  paymentMethod PaymentMethod @map("payment_method")
-  paymentDate   DateTime      @default(now()) @map("payment_date")
+  paymentMethod String @map("payment_method") // CAMBIADO: PaymentMethod -> String
+  paymentDate   DateTime @default(now()) @map("payment_date")
   reference     String?
   notes         String?
-  createdAt     DateTime      @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  saleId        Int           @map("sale_id")
-  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId        Int    @map("sale_id")
+  sale          Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@map("sale_payments")
 }
 
-enum PaymentMethod {
-  CASH
-  CREDIT_CARD
-  DEBIT_CARD
-  TRANSFER
-  CHECK
-}
+// La definición 'enum PaymentMethod' ha sido eliminada
 
 // ============= FACTURAS/COMPRAS (para referencia futura) =============
 
 model Invoice {
-  id            Int           @id @default(autoincrement())
-  invoiceNumber String        @unique @map("invoice_number")
-  invoiceDate   DateTime      @default(now()) @map("invoice_date")
-  dueDate       DateTime      @map("due_date")
+  id            Int      @id @default(autoincrement())
+  invoiceNumber String   @unique @map("invoice_number")
+  invoiceDate   DateTime @default(now()) @map("invoice_date")
+  dueDate       DateTime @map("due_date")
   subtotal      Float
   tax           Float
   total         Float
-  status        InvoiceStatus @default(PENDING)
+  status        String   @default("PENDING") // CAMBIADO: InvoiceStatus -> String
   notes         String?
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  providerId    Int?          @map("provider_id")
-  provider      Provider?     @relation(fields: [providerId], references: [id])
+  providerId    Int?     @map("provider_id")
+  provider      Provider? @relation(fields: [providerId], references: [id])
 
-  userId        Int?          @map("user_id")
-  user          User?         @relation(fields: [userId], references: [id])
+  userId        Int?     @map("user_id")
+  user          User?    @relation(fields: [userId], references: [id])
 
   payments      InvoicePayment[]
 
   @@map("invoices")
 }
 
-enum InvoiceStatus {
-  PENDING
-  PARTIAL
-  PAID
-  OVERDUE
-  CANCELLED
-}
+// La definición 'enum InvoiceStatus' ha sido eliminada
 
 model InvoicePayment {
-  id            Int           @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   amount        Float
-  paymentMethod PaymentMethod @map("payment_method")
-  paymentDate   DateTime      @default(now()) @map("payment_date")
+  paymentMethod String   @map("payment_method") // CAMBIADO: PaymentMethod -> String
+  paymentDate   DateTime @default(now()) @map("payment_date")
   reference     String?
   notes         String?
-  createdAt     DateTime      @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  invoiceId     Int           @map("invoice_id")
-  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId     Int      @map("invoice_id")
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("invoice_payments")
 }
