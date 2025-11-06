@@ -4,25 +4,59 @@ import toast from 'react-hot-toast'
 // Variable global para controlar si ya se está procesando un logout
 let isLoggingOut = false
 
-// Obtener la URL base del backend de forma SÍNCRONA
-const getBaseURLSync = () => {
-  // En Electron, usar localhost:3000
-  // En web, usar variable de entorno o localhost:3000
-  return import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// ============= DETECTAR ENTORNO Y OBTENER BASE URL =============
+
+const isElectron = () => {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.electronAPI !== 'undefined' &&
+    window.electronAPI.isElectron === true
+  );
 };
 
-// Crear instancia de axios CON baseURL desde el inicio
+const getBaseURL = async () => {
+  if (isElectron()) {
+    try {
+      // En Electron, obtener la URL del backend desde el proceso principal
+      const backendUrl = await window.electronAPI.getBackendUrl();
+      console.log('✅ Running in Electron - Backend URL:', backendUrl);
+      return `${backendUrl}/api`;
+    } catch (error) {
+      console.error('❌ Error getting backend URL from Electron:', error);
+      return 'http://localhost:3000/api';
+    }
+  } else {
+    // En navegador web (desarrollo)
+    const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    console.log('🌐 Running in browser - API URL:', url);
+    return url;
+  }
+};
+
+// ============= INICIALIZAR API =============
+
+// Crear instancia temporal de axios (se actualizará después)
 const api = axios.create({
-  baseURL: getBaseURLSync(),
+  baseURL: 'http://localhost:3000/api', // URL temporal
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-console.log('🔗 API initialized with baseURL:', api.defaults.baseURL);
+// Inicializar la baseURL correcta de forma asíncrona
+const initializeAPI = async () => {
+  const baseURL = await getBaseURL();
+  api.defaults.baseURL = baseURL;
+  console.log('🔗 API initialized with baseURL:', baseURL);
+  return api;
+};
 
-// Función para limpiar y redirigir
+// Inicializar inmediatamente
+let apiInitPromise = initializeAPI();
+
+// ============= FUNCIÓN PARA LIMPIAR Y REDIRIGIR =============
+
 const clearAuthAndRedirect = () => {
   if (isLoggingOut) return
   isLoggingOut = true
@@ -38,11 +72,20 @@ const clearAuthAndRedirect = () => {
   if (window.location.pathname !== '/login') {
     window.location.href = '/login'
   }
+  
+  // Resetear flag después de un tiempo
+  setTimeout(() => {
+    isLoggingOut = false
+  }, 1000)
 }
 
-// Interceptor para requests
+// ============= INTERCEPTOR PARA REQUESTS =============
+
 api.interceptors.request.use(
   async (config) => {
+    // Esperar a que la API esté inicializada
+    await apiInitPromise;
+    
     // Agregar timestamp para evitar cache
     config.params = {
       ...config.params,
@@ -82,7 +125,8 @@ api.interceptors.request.use(
   }
 )
 
-// Interceptor para responses
+// ============= INTERCEPTOR PARA RESPONSES =============
+
 api.interceptors.response.use(
   (response) => {
     return response
@@ -138,7 +182,7 @@ api.interceptors.response.use(
       toast.error('Error de conexión. Verifique su conexión a internet')
       
       // Manejo de errores de conexión específico para Electron
-      if (window.electronAPI?.checkBackendStatus) {
+      if (isElectron() && window.electronAPI?.checkBackendStatus) {
         try {
           const isHealthy = await window.electronAPI.checkBackendStatus();
           if (!isHealthy) {
@@ -159,4 +203,23 @@ api.interceptors.response.use(
   }
 )
 
-export default api
+// ============= FUNCIONES DE VERIFICACIÓN =============
+
+export const checkBackendConnection = async () => {
+  try {
+    await apiInitPromise; // Esperar inicialización
+    const baseURL = api.defaults.baseURL.replace('/api', '');
+    const response = await axios.get(`${baseURL}/health`, {
+      timeout: 5000,
+    });
+    return response.data.status === 'ok';
+  } catch (error) {
+    console.error('Backend connection failed:', error);
+    return false;
+  }
+};
+
+// ============= EXPORT =============
+
+export default api;
+export { isElectron, initializeAPI };
