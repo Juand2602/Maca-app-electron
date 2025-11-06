@@ -1,10 +1,10 @@
 // electron/main.js
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
-const { spawn } = require('child_process');
-const { autoUpdater } = require('electron-updater');
-const axios = require('axios');
-const log = require('electron-log');
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const path = require("path");
+const { spawn } = require("child_process");
+const { autoUpdater } = require("electron-updater");
+const axios = require("axios");
+const log = require("electron-log");
 
 let mainWindow;
 let backendProcess;
@@ -14,97 +14,107 @@ const FRONTEND_PORT = 5173;
 // ============= LOGGING =============
 
 // Configurar logging para auto-updater
-log.transports.file.level = 'info';
+log.transports.file.level = "info";
 autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.logger.transports.file.level = "info";
 
-log.info('App starting...');
+log.info("App starting...");
 
 // ============= BACKEND MANAGEMENT =============
 
 async function startBackend() {
   return new Promise((resolve, reject) => {
-    console.log('🔧 Starting backend server...');
-    
+    console.log("🔧 Starting backend server...");
+
     const isDev = !app.isPackaged;
-    
+
     let backendExecutablePath;
     let backendProcessOptions;
 
     if (isDev) {
       // En desarrollo, usamos 'node' y el script directamente
-      backendExecutablePath = 'node';
-      const scriptPath = path.join(__dirname, '../backend/src/app.js');
+      backendExecutablePath = "node";
+      const scriptPath = path.join(__dirname, "../backend/src/app.js");
       backendProcessOptions = {
         args: [scriptPath],
-        cwd: path.join(__dirname, '../backend'),
+        cwd: path.join(__dirname, "../backend"),
         env: {
           ...process.env,
           PORT: BACKEND_PORT,
-          NODE_ENV: 'development',
-          DATABASE_URL: `file:${path.join(__dirname, '../database/calzado.db')}`
+          NODE_ENV: "development",
+          DATABASE_URL: `file:${path.join(
+            __dirname,
+            "../database/calzado.db"
+          )}`,
         },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ["ignore", "pipe", "pipe"],
       };
     } else {
       // En producción, usamos el ejecutable .exe empaquetado
       // La ruta es ahora más robusta
-      const appPath = app.getAppPath();
-      backendExecutablePath = path.join(appPath, 'backend.exe');
-      
+      backendExecutablePath = path.join(process.resourcesPath, "backend.exe");
+
       backendProcessOptions = {
         args: [], // El ejecutable no necesita argumentos
         cwd: path.dirname(backendExecutablePath), // El directorio donde está el .exe
         env: {
           ...process.env,
           PORT: BACKEND_PORT,
-          NODE_ENV: 'production',
-          // La ruta de la BD debe ser relativa al ejecutable
-          DATABASE_URL: `file:${path.join(path.dirname(backendExecutablePath), 'database', 'calzado.db')}`
+          NODE_ENV: "production",
+          // La ruta de la BD debe estar en la carpeta 'resources/database'
+          DATABASE_URL: `file:${path.join(
+            process.resourcesPath,
+            "database",
+            "calzado.db"
+          )}`,
         },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ["ignore", "pipe", "pipe"],
       };
     }
-    
-    console.log('Backend executable path:', backendExecutablePath);
-    
+
+    console.log("Backend executable path:", backendExecutablePath);
+
     // Iniciar proceso del backend
-    backendProcess = spawn(backendExecutablePath, backendProcessOptions.args, backendProcessOptions);
-    
+    backendProcess = spawn(
+      backendExecutablePath,
+      backendProcessOptions.args,
+      backendProcessOptions
+    );
+
     // ... el resto de tu función (stdout, stderr, on('error'), etc.) se queda igual ...
-    
+
     // Capturar logs del backend
-    backendProcess.stdout.on('data', (data) => {
+    backendProcess.stdout.on("data", (data) => {
       const output = data.toString();
-      console.log('[Backend]', output);
-      
+      console.log("[Backend]", output);
+
       // Detectar cuando el servidor está listo
-      if (output.includes('Server') || output.includes('listening')) {
-        console.log('✅ Backend started successfully');
+      if (output.includes("Server") || output.includes("listening")) {
+        console.log("✅ Backend started successfully");
         resolve();
       }
     });
-    
-    backendProcess.stderr.on('data', (data) => {
-      console.error('[Backend Error]', data.toString());
+
+    backendProcess.stderr.on("data", (data) => {
+      console.error("[Backend Error]", data.toString());
     });
-    
-    backendProcess.on('error', (error) => {
-      console.error('Failed to start backend:', error);
+
+    backendProcess.on("error", (error) => {
+      console.error("Failed to start backend:", error);
       reject(error);
     });
-    
-    backendProcess.on('exit', (code) => {
+
+    backendProcess.on("exit", (code) => {
       console.log(`Backend process exited with code ${code}`);
       if (code !== 0 && code !== null) {
         reject(new Error(`Backend exited with code ${code}`));
       }
     });
-    
+
     // Timeout de seguridad (si no inicia en 10 segundos)
     setTimeout(() => {
       if (backendProcess && !backendProcess.killed) {
-        console.log('✅ Backend timeout reached, assuming started');
+        console.log("✅ Backend timeout reached, assuming started");
         resolve();
       }
     }, 10000);
@@ -114,30 +124,35 @@ async function startBackend() {
 async function waitForBackend() {
   const maxAttempts = 30;
   const delay = 1000;
-  
+
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      console.log(`🔍 Checking backend health... (attempt ${i + 1}/${maxAttempts})`);
-      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, {
-        timeout: 2000
-      });
-      
-      if (response.data.status === 'ok') {
-        console.log('✅ Backend is healthy and ready');
+      console.log(
+        `🔍 Checking backend health... (attempt ${i + 1}/${maxAttempts})`
+      );
+      const response = await axios.get(
+        `http://localhost:${BACKEND_PORT}/health`,
+        {
+          timeout: 2000,
+        }
+      );
+
+      if (response.data.status === "ok") {
+        console.log("✅ Backend is healthy and ready");
         return true;
       }
     } catch (error) {
       // Backend aún no está listo, esperar
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  
-  throw new Error('Backend failed to start after 30 seconds');
+
+  throw new Error("Backend failed to start after 30 seconds");
 }
 
 function stopBackend() {
   if (backendProcess && !backendProcess.killed) {
-    console.log('🛑 Stopping backend server...');
+    console.log("🛑 Stopping backend server...");
     backendProcess.kill();
     backendProcess = null;
   }
@@ -153,10 +168,10 @@ function createSplashWindow() {
     transparent: true,
     alwaysOnTop: true,
     webPreferences: {
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   });
-  
+
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -220,9 +235,11 @@ function createSplashWindow() {
     </body>
     </html>
   `;
-  
-  splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`);
-  
+
+  splash.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`
+  );
+
   return splash;
 }
 
@@ -234,24 +251,24 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    }
+      preload: path.join(__dirname, "preload.js"),
+    },
   });
-  
+
   // Cargar frontend
   const startUrl = !app.isPackaged
     ? `http://localhost:${FRONTEND_PORT}`
-    : `file://${path.join(__dirname, '../frontend/dist/index.html')}`;
-    
-  console.log('Loading frontend from:', startUrl);
+    : `file://${path.join(__dirname, "../frontend/dist/index.html")}`;
+
+  console.log("Loading frontend from:", startUrl);
   mainWindow.loadURL(startUrl);
-  
+
   // En desarrollo, abrir DevTools
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
   }
-  
-  mainWindow.on('closed', () => {
+
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 
@@ -263,46 +280,45 @@ function createMainWindow() {
 async function initializeApp() {
   try {
     const splash = createSplashWindow();
-    
-    console.log('🚀 Initializing Sistema Calzado...');
-    
+
+    console.log("🚀 Initializing Sistema Calzado...");
+
     // 1. Iniciar backend
     await startBackend();
-    
+
     // 2. Esperar a que el backend esté listo
     await waitForBackend();
-    
+
     // 3. Crear ventana principal
-    console.log('🖥️  Creating main window...');
+    console.log("🖥️  Creating main window...");
     const mainWindow = createMainWindow();
-    
+
     // 4. Esperar a que la ventana esté lista
-    mainWindow.once('ready-to-show', () => {
+    mainWindow.once("ready-to-show", () => {
       setTimeout(() => {
         splash.close();
         mainWindow.show();
         mainWindow.maximize();
-        console.log('✅ Application ready!');
+        console.log("✅ Application ready!");
       }, 500);
     });
-    
+
     // Auto-updater (solo en producción)
     if (app.isPackaged) {
-      log.info('Setting up auto-updater...');
+      log.info("Setting up auto-updater...");
       setupAutoUpdater();
     } else {
-      log.info('Development mode - auto-updater disabled');
+      log.info("Development mode - auto-updater disabled");
     }
-    
   } catch (error) {
-    console.error('❌ Failed to initialize app:', error);
-    
-    const { dialog } = require('electron');
+    console.error("❌ Failed to initialize app:", error);
+
+    const { dialog } = require("electron");
     dialog.showErrorBox(
-      'Error al iniciar',
+      "Error al iniciar",
       `No se pudo iniciar la aplicación:\n\n${error.message}\n\nRevise la consola para más detalles.`
     );
-    
+
     app.quit();
   }
 }
@@ -311,84 +327,90 @@ async function initializeApp() {
 
 app.whenReady().then(initializeApp);
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   stopBackend();
-  if (process.platform !== 'darwin') {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow();
   }
 });
 
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   stopBackend();
 });
 
 // ============= IPC HANDLERS =============
 
-ipcMain.handle('get-backend-url', () => {
+ipcMain.handle("get-backend-url", () => {
   return `http://localhost:${BACKEND_PORT}`;
 });
 
-ipcMain.handle('is-electron', () => {
+ipcMain.handle("is-electron", () => {
   return true;
 });
 
-ipcMain.handle('check-backend-status', async () => {
+ipcMain.handle("check-backend-status", async () => {
   try {
-    const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, {
-      timeout: 2000
-    });
-    return response.data.status === 'ok';
+    const response = await axios.get(
+      `http://localhost:${BACKEND_PORT}/health`,
+      {
+        timeout: 2000,
+      }
+    );
+    return response.data.status === "ok";
   } catch (error) {
-    console.error('Backend health check failed:', error.message);
+    console.error("Backend health check failed:", error.message);
     return false;
   }
 });
 
-ipcMain.handle('get-user-data-path', () => {
-  return app.getPath('userData');
+ipcMain.handle("get-user-data-path", () => {
+  return app.getPath("userData");
 });
 
-ipcMain.handle('get-app-version', () => {
+ipcMain.handle("get-app-version", () => {
   return app.getVersion();
 });
 
 // Auto-updater events
-autoUpdater.on('update-available', (info) => {
-  mainWindow?.webContents.send('update-available', info);
+autoUpdater.on("update-available", (info) => {
+  mainWindow?.webContents.send("update-available", info);
 });
 
-autoUpdater.on('update-downloaded', (info) => {
-  mainWindow?.webContents.send('update-downloaded', info);
+autoUpdater.on("update-downloaded", (info) => {
+  mainWindow?.webContents.send("update-downloaded", info);
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
-  mainWindow?.webContents.send('download-progress', progressObj);
+autoUpdater.on("download-progress", (progressObj) => {
+  mainWindow?.webContents.send("download-progress", progressObj);
 });
 
-ipcMain.on('restart-app', () => {
+ipcMain.on("restart-app", () => {
   autoUpdater.quitAndInstall(false, true);
 });
 
-ipcMain.on('check-for-updates', () => {
+ipcMain.on("check-for-updates", () => {
   if (app.isPackaged) {
     autoUpdater.checkForUpdates();
   } else {
-    mainWindow?.webContents.send('update-status', 'Auto-updater is disabled in development');
+    mainWindow?.webContents.send(
+      "update-status",
+      "Auto-updater is disabled in development"
+    );
   }
 });
 
 // ============= ERROR HANDLING =============
 
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
 });
 
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled rejection:', error);
-}); 
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled rejection:", error);
+});
