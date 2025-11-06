@@ -46,7 +46,10 @@ jobs:
           echo "Checking Tailwind installation..."
           npm list tailwindcss postcss autoprefixer || true
           echo "Checking config files..."
-          ls -la tailwind.config.js postcss.config.js vite.config.js
+          if (Test-Path "tailwind.config.js") { Write-Host "✓ Found tailwind.config.js" } else { Write-Host "✗ Missing tailwind.config.js" }
+          if (Test-Path "postcss.config.js") { Write-Host "✓ Found postcss.config.js" } else { Write-Host "✗ Missing postcss.config.js" }
+          if (Test-Path "vite.config.js") { Write-Host "✓ Found vite.config.js" } else { Write-Host "✗ Missing vite.config.js" }
+        shell: pwsh
       
       # ===== BUILD FRONTEND =====
       
