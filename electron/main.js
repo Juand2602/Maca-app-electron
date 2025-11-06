@@ -28,24 +28,44 @@ async function startBackend() {
     
     const isDev = !app.isPackaged;
     
-    // Ruta al backend
-    const backendPath = isDev
-      ? path.join(__dirname, '../backend/src/app.js')
-      : path.join(process.resourcesPath, 'backend/src/app.js');
+    let backendExecutablePath;
+    let backendProcessOptions;
+
+    if (isDev) {
+      // En desarrollo, usamos 'node' y el script directamente
+      backendExecutablePath = 'node';
+      const scriptPath = path.join(__dirname, '../backend/src/app.js');
+      backendProcessOptions = {
+        args: [scriptPath],
+        cwd: path.join(__dirname, '../backend'),
+        env: {
+          ...process.env,
+          PORT: BACKEND_PORT,
+          NODE_ENV: 'development',
+          DATABASE_URL: `file:${path.join(__dirname, '../database/calzado.db')}`
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+      };
+    } else {
+      // En producción, usamos el ejecutable .exe empaquetado
+      backendExecutablePath = path.join(process.resourcesPath, 'backend.exe');
+      backendProcessOptions = {
+        args: [], // El ejecutable no necesita argumentos
+        cwd: path.dirname(backendExecutablePath), // El directorio donde está el .exe
+        env: {
+          ...process.env,
+          PORT: BACKEND_PORT,
+          NODE_ENV: 'production',
+          DATABASE_URL: `file:${path.join(process.resourcesPath, 'database/calzado.db')}`
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+      };
+    }
     
-    console.log('Backend path:', backendPath);
+    console.log('Backend executable path:', backendExecutablePath);
     
     // Iniciar proceso del backend
-    backendProcess = spawn('node', [backendPath], {
-      cwd: isDev ? path.join(__dirname, '../backend') : path.join(process.resourcesPath, 'backend'),
-      env: {
-        ...process.env,
-        PORT: BACKEND_PORT,
-        NODE_ENV: isDev ? 'development' : 'production',
-        DATABASE_URL: `file:${path.join(__dirname, '../database/calzado.db')}`
-      },
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
+    backendProcess = spawn(backendExecutablePath, backendProcessOptions.args, backendProcessOptions);
     
     // Capturar logs del backend
     backendProcess.stdout.on('data', (data) => {

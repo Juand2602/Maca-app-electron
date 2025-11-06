@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Sistema de gestión para calzado Maca",
   "main": "electron/main.js",
- 
   "scripts": {
     "dev": "concurrently -n \"FRONTEND,ELECTRON\" -c \"bgMagenta,bgGreen\" \"npm run dev:frontend\" \"npm run dev:electron\"",
     "dev:backend": "cd backend && npm run dev",
@@ -12,7 +11,7 @@
     "start": "npx electron .",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npx prisma generate",
+    "build:backend": "cd backend && npx prisma generate && npx pkg . --targets node18-win-x64 --output ../dist-electron/backend.exe",
     "electron:build": "npm run build && electron-builder",
     "release": "node scripts/release.js"
   },
@@ -27,13 +26,14 @@
     "axios": "^1.6.0",
     "electron-log": "^5.0.0",
     "electron-store": "^8.1.0",
-    "mysql2": "^3.15.3",
-    "electron-updater": "^6.1.7"
+    "electron-updater": "^6.1.7",
+    "mysql2": "^3.15.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "electron": "^29.0.0",
     "electron-builder": "^24.9.1",
+    "pkg": "^5.8.1",
     "wait-on": "^7.2.0"
   },
   "build": {
@@ -44,10 +44,8 @@
     },
     "files": [
       "electron/**/*",
-      "frontend/dist/**/*",
-      "backend/dist/**/*",
-      "backend/node_modules/.prisma/**/*",
-      "backend/prisma/schema.prisma"
+  "frontend/dist/**/*",
+  "dist-electron/backend.exe"
     ],
     "extraResources": [
       {
