@@ -17,7 +17,6 @@ const isElectron = () => {
 const getBaseURL = async () => {
   if (isElectron()) {
     try {
-      // En Electron, obtener la URL del backend desde el proceso principal
       const backendUrl = await window.electronAPI.getBackendUrl();
       console.log('✅ Running in Electron - Backend URL:', backendUrl);
       return `${backendUrl}/api`;
@@ -26,7 +25,6 @@ const getBaseURL = async () => {
       return 'http://localhost:3000/api';
     }
   } else {
-    // En navegador web (desarrollo)
     const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
     console.log('🌐 Running in browser - API URL:', url);
     return url;
@@ -35,25 +33,44 @@ const getBaseURL = async () => {
 
 // ============= INICIALIZAR API =============
 
-// Crear instancia temporal de axios (se actualizará después)
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // URL temporal
+  baseURL: 'http://localhost:3000/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// Estado de inicialización
+let isInitialized = false;
+let initializationPromise = null;
+
 // Inicializar la baseURL correcta de forma asíncrona
 const initializeAPI = async () => {
-  const baseURL = await getBaseURL();
-  api.defaults.baseURL = baseURL;
-  console.log('🔗 API initialized with baseURL:', baseURL);
+  if (isInitialized) return api;
+  
+  if (initializationPromise) {
+    await initializationPromise;
+    return api;
+  }
+
+  initializationPromise = (async () => {
+    try {
+      const baseURL = await getBaseURL();
+      api.defaults.baseURL = baseURL;
+      isInitialized = true;
+      console.log('🔗 API initialized with baseURL:', baseURL);
+    } catch (error) {
+      console.error('❌ Failed to initialize API:', error);
+      // Usar URL por defecto en caso de error
+      api.defaults.baseURL = 'http://localhost:3000/api';
+      isInitialized = true;
+    }
+  })();
+
+  await initializationPromise;
   return api;
 };
-
-// Inicializar inmediatamente
-let apiInitPromise = initializeAPI();
 
 // ============= FUNCIÓN PARA LIMPIAR Y REDIRIGIR =============
 
@@ -83,8 +100,10 @@ const clearAuthAndRedirect = () => {
 
 api.interceptors.request.use(
   async (config) => {
-    // Esperar a que la API esté inicializada
-    await apiInitPromise;
+    // MODIFICADO: Esperar a que la API esté inicializada
+    if (!isInitialized) {
+      await initializeAPI();
+    }
     
     // Agregar timestamp para evitar cache
     config.params = {
@@ -92,7 +111,7 @@ api.interceptors.request.use(
       _t: Date.now(),
     }
     
-    // Obtener token del localStorage (mantener compatibilidad con tokenData)
+    // Obtener token del localStorage
     const tokenData = localStorage.getItem('tokenData')
     const token = localStorage.getItem('token')
     
@@ -103,18 +122,16 @@ api.interceptors.request.use(
         if (new Date().getTime() < expiresAt) {
           config.headers.Authorization = `Bearer ${parsedToken}`
         } else {
-          // Token expirado, limpiar y redirigir
+          console.warn('⚠️ Token expired before request')
           clearAuthAndRedirect()
-          // Cancelar la petición para evitar errores adicionales
           return Promise.reject(new Error('Token expirado'))
         }
       } catch (e) {
-        console.error('Error al parsear tokenData:', e)
+        console.error('❌ Error parsing tokenData:', e)
         clearAuthAndRedirect()
         return Promise.reject(new Error('Error en token'))
       }
     } else if (token) {
-      // Usar el nuevo formato de token simple
       config.headers.Authorization = `Bearer ${token}`
     }
     
@@ -135,11 +152,9 @@ api.interceptors.response.use(
     const { response, request, message } = error
 
     if (response) {
-      // El servidor respondió con un código de error
       const { status, data } = response
       
       if (status === 401) {
-        // Token expirado o inválido
         if (!sessionStorage.getItem('logoutMessageShown')) {
           toast.error('Sesión expirada. Por favor, inicie sesión nuevamente')
           sessionStorage.setItem('logoutMessageShown', 'true')
@@ -163,7 +178,6 @@ api.interceptors.response.use(
           toast.error(data.message || 'Conflicto en los datos')
           break
         case 422:
-          // Errores de validación
           if (data.errors && Array.isArray(data.errors)) {
             data.errors.forEach(err => toast.error(err))
           } else {
@@ -177,26 +191,32 @@ api.interceptors.response.use(
           toast.error(data.message || data.error || 'Error desconocido')
       }
     } else if (request) {
-      // La petición se hizo pero no se recibió respuesta
-      console.error('Connection error:', message);
-      toast.error('Error de conexión. Verifique su conexión a internet')
+      console.error('❌ Connection error:', message);
       
-      // Manejo de errores de conexión específico para Electron
+      // MODIFICADO: No mostrar error si estamos en inicialización
+      if (isInitialized) {
+        toast.error('Error de conexión con el servidor')
+      }
+      
+      // Verificar estado del backend en Electron
       if (isElectron() && window.electronAPI?.checkBackendStatus) {
         try {
           const isHealthy = await window.electronAPI.checkBackendStatus();
           if (!isHealthy) {
-            console.error('El backend no está disponible');
-            toast.error('El backend no está disponible. Intente reiniciar la aplicación.');
+            console.error('❌ Backend not available');
+            if (isInitialized) {
+              toast.error('El backend no está disponible');
+            }
           }
         } catch (checkError) {
-          console.error('Error checking backend status:', checkError);
+          console.error('❌ Error checking backend status:', checkError);
         }
       }
     } else {
-      // Error al configurar la petición
-      console.error('Request configuration error:', message);
-      toast.error('Error de configuración: ' + message)
+      console.error('❌ Request configuration error:', message);
+      if (isInitialized) {
+        toast.error('Error de configuración: ' + message)
+      }
     }
 
     return Promise.reject(error)
@@ -207,14 +227,20 @@ api.interceptors.response.use(
 
 export const checkBackendConnection = async () => {
   try {
-    await apiInitPromise; // Esperar inicialización
+    // Asegurar que la API esté inicializada
+    if (!isInitialized) {
+      await initializeAPI();
+    }
+    
     const baseURL = api.defaults.baseURL.replace('/api', '');
     const response = await axios.get(`${baseURL}/health`, {
       timeout: 5000,
     });
+    
+    console.log('✅ Backend connection check:', response.data);
     return response.data.status === 'ok';
   } catch (error) {
-    console.error('Backend connection failed:', error);
+    console.error('❌ Backend connection failed:', error.message);
     return false;
   }
 };

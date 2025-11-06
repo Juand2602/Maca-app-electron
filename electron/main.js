@@ -13,7 +13,6 @@ const FRONTEND_PORT = 5173;
 
 // ============= LOGGING =============
 
-// Configurar logging para auto-updater
 log.transports.file.level = "info";
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = "info";
@@ -25,11 +24,9 @@ log.info("App starting...");
 function setupAutoUpdater() {
   log.info("Configuring auto-updater...");
   
-  // Configuración del auto-updater
-  autoUpdater.autoDownload = false; // No descargar automáticamente
-  autoUpdater.autoInstallOnAppQuit = true; // Instalar al cerrar
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
 
-  // Evento: actualización disponible
   autoUpdater.on("update-available", (info) => {
     log.info("Update available:", info);
     if (mainWindow) {
@@ -37,12 +34,10 @@ function setupAutoUpdater() {
     }
   });
 
-  // Evento: no hay actualizaciones
   autoUpdater.on("update-not-available", (info) => {
     log.info("Update not available:", info);
   });
 
-  // Evento: error al verificar actualizaciones
   autoUpdater.on("error", (err) => {
     log.error("Error in auto-updater:", err);
     if (mainWindow) {
@@ -50,7 +45,6 @@ function setupAutoUpdater() {
     }
   });
 
-  // Evento: descarga en progreso
   autoUpdater.on("download-progress", (progressObj) => {
     log.info(`Download progress: ${progressObj.percent}%`);
     if (mainWindow) {
@@ -58,7 +52,6 @@ function setupAutoUpdater() {
     }
   });
 
-  // Evento: actualización descargada
   autoUpdater.on("update-downloaded", (info) => {
     log.info("Update downloaded:", info);
     if (mainWindow) {
@@ -66,7 +59,6 @@ function setupAutoUpdater() {
     }
   });
 
-  // Verificar actualizaciones al iniciar (después de 10 segundos)
   setTimeout(() => {
     log.info("Checking for updates...");
     autoUpdater.checkForUpdates().catch(err => {
@@ -74,7 +66,6 @@ function setupAutoUpdater() {
     });
   }, 10000);
 
-  // Verificar actualizaciones cada 4 horas
   setInterval(() => {
     log.info("Periodic update check...");
     autoUpdater.checkForUpdates().catch(err => {
@@ -95,7 +86,6 @@ async function startBackend() {
     let backendProcessOptions;
 
     if (isDev) {
-      // En desarrollo, usamos 'node' y el script directamente
       backendExecutablePath = "node";
       const scriptPath = path.join(__dirname, "../backend/src/app.js");
       backendProcessOptions = {
@@ -113,7 +103,6 @@ async function startBackend() {
         stdio: ["ignore", "pipe", "pipe"],
       };
     } else {
-      // En producción, usamos el ejecutable .exe empaquetado
       backendExecutablePath = path.join(process.resourcesPath, "backend.exe");
 
       backendProcessOptions = {
@@ -134,23 +123,26 @@ async function startBackend() {
     }
 
     console.log("Backend executable path:", backendExecutablePath);
+    console.log("Backend options:", backendProcessOptions);
 
-    // Iniciar proceso del backend
     backendProcess = spawn(
       backendExecutablePath,
       backendProcessOptions.args,
       backendProcessOptions
     );
 
-    // Capturar logs del backend
+    let backendStarted = false;
+
     backendProcess.stdout.on("data", (data) => {
       const output = data.toString();
       console.log("[Backend]", output);
 
       // Detectar cuando el servidor está listo
-      if (output.includes("Server") || output.includes("listening")) {
+      if ((output.includes("Server") || output.includes("listening") || output.includes("Sistema Calzado API")) && !backendStarted) {
+        backendStarted = true;
         console.log("✅ Backend started successfully");
-        resolve();
+        // Esperar 2 segundos adicionales para asegurar que está completamente listo
+        setTimeout(() => resolve(), 2000);
       }
     });
 
@@ -165,48 +157,53 @@ async function startBackend() {
 
     backendProcess.on("exit", (code) => {
       console.log(`Backend process exited with code ${code}`);
-      if (code !== 0 && code !== null) {
+      if (code !== 0 && code !== null && !backendStarted) {
         reject(new Error(`Backend exited with code ${code}`));
       }
     });
 
-    // Timeout de seguridad (si no inicia en 10 segundos)
+    // Timeout de seguridad aumentado a 20 segundos
     setTimeout(() => {
-      if (backendProcess && !backendProcess.killed) {
-        console.log("✅ Backend timeout reached, assuming started");
+      if (!backendStarted) {
+        console.log("⚠️ Backend timeout reached, assuming started");
         resolve();
       }
-    }, 10000);
+    }, 20000);
   });
 }
 
 async function waitForBackend() {
-  const maxAttempts = 30;
+  const maxAttempts = 40; // Aumentado de 30 a 40
   const delay = 1000;
+
+  console.log("🔍 Waiting for backend to be ready...");
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      console.log(
-        `🔍 Checking backend health... (attempt ${i + 1}/${maxAttempts})`
-      );
+      console.log(`   Attempt ${i + 1}/${maxAttempts}...`);
       const response = await axios.get(
         `http://localhost:${BACKEND_PORT}/health`,
         {
-          timeout: 2000,
+          timeout: 3000,
         }
       );
 
       if (response.data.status === "ok") {
-        console.log("✅ Backend is healthy and ready");
+        console.log("✅ Backend is healthy and ready!");
+        console.log("   Backend info:", response.data);
         return true;
       }
     } catch (error) {
       // Backend aún no está listo, esperar
+      if (i === maxAttempts - 1) {
+        console.error("❌ Backend health check failed after all attempts");
+        console.error("   Last error:", error.message);
+      }
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  throw new Error("Backend failed to start after 30 seconds");
+  throw new Error("Backend failed to start after 40 seconds");
 }
 
 function stopBackend() {
@@ -222,7 +219,7 @@ function stopBackend() {
 function createSplashWindow() {
   const splash = new BrowserWindow({
     width: 400,
-    height: 300,
+    height: 350,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -263,7 +260,8 @@ function createSplashWindow() {
           box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         }
         h1 { font-size: 24px; margin-bottom: 10px; }
-        p { font-size: 14px; opacity: 0.9; }
+        p { font-size: 14px; opacity: 0.9; margin-bottom: 5px; }
+        .status { font-size: 12px; opacity: 0.7; }
         .loader {
           width: 150px;
           height: 3px;
@@ -289,6 +287,7 @@ function createSplashWindow() {
         <div class="logo">👟</div>
         <h1>Sistema Calzado</h1>
         <p>Iniciando aplicación...</p>
+        <p class="status">Preparando servicios</p>
         <div class="loader"><div class="loader-bar"></div></div>
       </div>
     </body>
@@ -314,16 +313,21 @@ function createMainWindow() {
     },
   });
 
-  // Cargar frontend
-  const startUrl = !app.isPackaged
+  const isDev = !app.isPackaged;
+
+  // CORRECCIÓN: Ruta correcta para producción
+  const startUrl = isDev
     ? `http://localhost:${FRONTEND_PORT}`
     : `file://${path.join(__dirname, "../frontend/dist/index.html")}`;
 
-  console.log("Loading frontend from:", startUrl);
+  console.log("📂 Loading frontend from:", startUrl);
+  console.log("   Is packaged:", app.isPackaged);
+  console.log("   __dirname:", __dirname);
+
   mainWindow.loadURL(startUrl);
 
   // En desarrollo, abrir DevTools
-  if (!app.isPackaged) {
+  if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
@@ -337,30 +341,49 @@ function createMainWindow() {
 // ============= APP INITIALIZATION =============
 
 async function initializeApp() {
+  let splash;
+  
   try {
-    const splash = createSplashWindow();
+    splash = createSplashWindow();
 
     console.log("🚀 Initializing Sistema Calzado...");
+    console.log("   Environment:", app.isPackaged ? "PRODUCTION" : "DEVELOPMENT");
 
     // 1. Iniciar backend
+    console.log("\n📡 Step 1: Starting backend...");
     await startBackend();
 
     // 2. Esperar a que el backend esté listo
+    console.log("\n🔍 Step 2: Verifying backend health...");
     await waitForBackend();
 
     // 3. Crear ventana principal
-    console.log("🖥️  Creating main window...");
+    console.log("\n🖥️  Step 3: Creating main window...");
     const mainWindow = createMainWindow();
 
     // 4. Esperar a que la ventana esté lista
     mainWindow.once("ready-to-show", () => {
+      console.log("\n✅ Step 4: Window ready, showing application...");
       setTimeout(() => {
-        splash.close();
+        if (splash && !splash.isDestroyed()) {
+          splash.close();
+        }
         mainWindow.show();
         mainWindow.maximize();
-        console.log("✅ Application ready!");
-      }, 500);
+        console.log("🎉 Application ready!");
+      }, 1000); // Delay adicional para asegurar que todo está cargado
     });
+
+    // Timeout de seguridad para cerrar splash
+    setTimeout(() => {
+      if (splash && !splash.isDestroyed()) {
+        console.log("⚠️ Force closing splash after timeout");
+        splash.close();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+        }
+      }
+    }, 15000);
 
     // Auto-updater (solo en producción)
     if (app.isPackaged) {
@@ -371,10 +394,15 @@ async function initializeApp() {
     }
   } catch (error) {
     console.error("❌ Failed to initialize app:", error);
+    console.error("   Error details:", error.stack);
+
+    if (splash && !splash.isDestroyed()) {
+      splash.close();
+    }
 
     dialog.showErrorBox(
       "Error al iniciar",
-      `No se pudo iniciar la aplicación:\n\n${error.message}\n\nRevise la consola para más detalles.`
+      `No se pudo iniciar la aplicación:\n\n${error.message}\n\nDetalles en la consola.`
     );
 
     app.quit();
