@@ -20,6 +20,69 @@ autoUpdater.logger.transports.file.level = "info";
 
 log.info("App starting...");
 
+// ============= AUTO-UPDATER =============
+
+function setupAutoUpdater() {
+  log.info("Configuring auto-updater...");
+  
+  // Configuración del auto-updater
+  autoUpdater.autoDownload = false; // No descargar automáticamente
+  autoUpdater.autoInstallOnAppQuit = true; // Instalar al cerrar
+
+  // Evento: actualización disponible
+  autoUpdater.on("update-available", (info) => {
+    log.info("Update available:", info);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-available", info);
+    }
+  });
+
+  // Evento: no hay actualizaciones
+  autoUpdater.on("update-not-available", (info) => {
+    log.info("Update not available:", info);
+  });
+
+  // Evento: error al verificar actualizaciones
+  autoUpdater.on("error", (err) => {
+    log.error("Error in auto-updater:", err);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", err);
+    }
+  });
+
+  // Evento: descarga en progreso
+  autoUpdater.on("download-progress", (progressObj) => {
+    log.info(`Download progress: ${progressObj.percent}%`);
+    if (mainWindow) {
+      mainWindow.webContents.send("download-progress", progressObj);
+    }
+  });
+
+  // Evento: actualización descargada
+  autoUpdater.on("update-downloaded", (info) => {
+    log.info("Update downloaded:", info);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-downloaded", info);
+    }
+  });
+
+  // Verificar actualizaciones al iniciar (después de 10 segundos)
+  setTimeout(() => {
+    log.info("Checking for updates...");
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error("Failed to check for updates:", err);
+    });
+  }, 10000);
+
+  // Verificar actualizaciones cada 4 horas
+  setInterval(() => {
+    log.info("Periodic update check...");
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error("Failed to check for updates:", err);
+    });
+  }, 4 * 60 * 60 * 1000);
+}
+
 // ============= BACKEND MANAGEMENT =============
 
 async function startBackend() {
@@ -51,17 +114,15 @@ async function startBackend() {
       };
     } else {
       // En producción, usamos el ejecutable .exe empaquetado
-      // La ruta es ahora más robusta
       backendExecutablePath = path.join(process.resourcesPath, "backend.exe");
 
       backendProcessOptions = {
-        args: [], // El ejecutable no necesita argumentos
-        cwd: path.dirname(backendExecutablePath), // El directorio donde está el .exe
+        args: [],
+        cwd: path.dirname(backendExecutablePath),
         env: {
           ...process.env,
           PORT: BACKEND_PORT,
           NODE_ENV: "production",
-          // La ruta de la BD debe estar en la carpeta 'resources/database'
           DATABASE_URL: `file:${path.join(
             process.resourcesPath,
             "database",
@@ -80,8 +141,6 @@ async function startBackend() {
       backendProcessOptions.args,
       backendProcessOptions
     );
-
-    // ... el resto de tu función (stdout, stderr, on('error'), etc.) se queda igual ...
 
     // Capturar logs del backend
     backendProcess.stdout.on("data", (data) => {
@@ -313,7 +372,6 @@ async function initializeApp() {
   } catch (error) {
     console.error("❌ Failed to initialize app:", error);
 
-    const { dialog } = require("electron");
     dialog.showErrorBox(
       "Error al iniciar",
       `No se pudo iniciar la aplicación:\n\n${error.message}\n\nRevise la consola para más detalles.`
@@ -377,40 +435,42 @@ ipcMain.handle("get-app-version", () => {
   return app.getVersion();
 });
 
-// Auto-updater events
-autoUpdater.on("update-available", (info) => {
-  mainWindow?.webContents.send("update-available", info);
+// IPC para auto-updater
+ipcMain.on("check-for-updates", () => {
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error("Failed to check for updates:", err);
+    });
+  } else {
+    if (mainWindow) {
+      mainWindow.webContents.send(
+        "update-status",
+        "Auto-updater is disabled in development"
+      );
+    }
+  }
 });
 
-autoUpdater.on("update-downloaded", (info) => {
-  mainWindow?.webContents.send("update-downloaded", info);
-});
-
-autoUpdater.on("download-progress", (progressObj) => {
-  mainWindow?.webContents.send("download-progress", progressObj);
+ipcMain.on("download-update", () => {
+  if (app.isPackaged) {
+    autoUpdater.downloadUpdate().catch(err => {
+      log.error("Failed to download update:", err);
+    });
+  }
 });
 
 ipcMain.on("restart-app", () => {
   autoUpdater.quitAndInstall(false, true);
 });
 
-ipcMain.on("check-for-updates", () => {
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdates();
-  } else {
-    mainWindow?.webContents.send(
-      "update-status",
-      "Auto-updater is disabled in development"
-    );
-  }
-});
-
 // ============= ERROR HANDLING =============
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
+  log.error("Uncaught exception:", error);
 });
 
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled rejection:", error);
+  log.error("Unhandled rejection:", error);
 });
