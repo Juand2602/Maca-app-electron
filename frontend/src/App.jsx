@@ -24,27 +24,34 @@ import AddInvoice from "./pages/Accounting/AddInvoice";
 import InvoiceDetails from "./pages/Accounting/InvoiceDetails";
 import Profile from "./pages/Profile/Profile";
 
+console.log('✅ App.jsx loaded')
+
 function App() {
   const { isAuthenticated, user, initialize } = useAuthStore();
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   // Inicializar el estado de autenticación al cargar la app
   useEffect(() => {
+    console.log('🔄 Initializing auth store...')
     initialize();
     setIsInitialized(true);
-  }, []);
+    console.log('✅ Auth store initialized')
+  }, [initialize]);
 
   // Mostrar pantalla de carga mientras se inicializa
   if (!isInitialized) {
+    console.log('⏳ App initializing...')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="spinner h-12 w-12 mx-auto mb-4"></div>
+          <div className="animate-spin h-12 w-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando...</p>
         </div>
       </div>
     );
   }
+
+  console.log('✅ App rendering. isAuthenticated:', isAuthenticated)
 
   // Componente para proteger rutas
   const ProtectedRoute = ({ children }) => {
@@ -77,8 +84,6 @@ function App() {
               <Layout>
                 <Routes>
                   {/* Dashboard */}
-                  <Route index element={<Dashboard />} />
-
                   <Route index element={<Dashboard />} />
                   <Route path="profile" element={<Profile />} />
 

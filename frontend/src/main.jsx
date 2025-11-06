@@ -5,7 +5,16 @@ import { Toaster } from 'react-hot-toast'
 import App from './App.jsx'
 import './styles/globals.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+console.log('✅ main.jsx loaded')
+
+const rootElement = document.getElementById('root')
+if (!rootElement) {
+  console.error('❌ ERROR: No se encontró el elemento #root')
+} else {
+  console.log('✅ Root element found')
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
@@ -36,3 +45,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
+console.log('✅ React app should be rendered')
