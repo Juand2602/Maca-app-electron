@@ -38,11 +38,28 @@ jobs:
         working-directory: backend
         run: npx prisma generate
 
+      # ===== VERIFICAR CONFIGURACIÓN DE TAILWIND =====
+      
+      - name: 🎨 Verify Tailwind setup
+        working-directory: frontend
+        run: |
+          echo "Checking Tailwind installation..."
+          npm list tailwindcss postcss autoprefixer || true
+          echo "Checking config files..."
+          ls -la tailwind.config.js postcss.config.js vite.config.js
+      
       # ===== BUILD FRONTEND =====
       
       - name: 🔨 Build frontend
         working-directory: frontend
-        run: npm run build
+        run: |
+          echo "Building frontend..."
+          npm run build
+          echo "Checking build output..."
+          ls -lh dist/
+          ls -lh dist/assets/
+        env:
+          NODE_ENV: production
 
       # ===== BUILD BACKEND (PKG) =====
       
