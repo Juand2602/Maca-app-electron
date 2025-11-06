@@ -44,11 +44,10 @@ jobs:
         working-directory: frontend
         run: |
           echo "Checking Tailwind installation..."
-          npm list tailwindcss postcss autoprefixer || true
+          npm list tailwindcss postcss autoprefixer
+          echo ""
           echo "Checking config files..."
-          if (Test-Path "tailwind.config.js") { Write-Host "✓ Found tailwind.config.js" } else { Write-Host "✗ Missing tailwind.config.js" }
-          if (Test-Path "postcss.config.js") { Write-Host "✓ Found postcss.config.js" } else { Write-Host "✗ Missing postcss.config.js" }
-          if (Test-Path "vite.config.js") { Write-Host "✓ Found vite.config.js" } else { Write-Host "✗ Missing vite.config.js" }
+          dir tailwind.config.js postcss.config.js vite.config.js
         shell: pwsh
       
       # ===== BUILD FRONTEND =====
@@ -58,9 +57,12 @@ jobs:
         run: |
           echo "Building frontend..."
           npm run build
+          echo ""
           echo "Checking build output..."
-          ls -lh dist/
-          ls -lh dist/assets/
+          dir dist
+          echo ""
+          dir dist\assets
+        shell: pwsh
         env:
           NODE_ENV: production
 
@@ -82,6 +84,44 @@ jobs:
           }
         shell: pwsh
 
+      # ===== VERIFICAR BUILD COMPLETO =====
+      
+      - name: 🔍 Verify complete build
+        run: |
+          echo "=== FRONTEND BUILD ==="
+          if (Test-Path "frontend\dist\index.html") {
+            Write-Host "✅ index.html exists" -ForegroundColor Green
+            Get-Content "frontend\dist\index.html" -Head 20
+          } else {
+            Write-Host "❌ index.html NOT FOUND" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== CSS FILES ==="
+          $cssFiles = Get-ChildItem "frontend\dist\assets\*.css" -ErrorAction SilentlyContinue
+          if ($cssFiles) {
+            Write-Host "✅ CSS files found:" -ForegroundColor Green
+            $cssFiles | ForEach-Object { Write-Host $_.Name "(" $_.Length "bytes)" }
+            Write-Host ""
+            Write-Host "CSS content preview:"
+            Get-Content $cssFiles[0].FullName -Head 30
+          } else {
+            Write-Host "❌ NO CSS FILES FOUND" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== BACKEND BUILD ==="
+          if (Test-Path "dist-electron\backend.exe") {
+            Write-Host "✅ backend.exe exists" -ForegroundColor Green
+            Get-Item "dist-electron\backend.exe" | ForEach-Object { Write-Host $_.Name "(" $_.Length "bytes)" }
+          } else {
+            Write-Host "❌ backend.exe NOT FOUND" -ForegroundColor Red
+            exit 1
+          }
+        shell: pwsh
+      
       # ===== BUILD ELECTRON =====
       
       - name: 📱 Build Electron App
