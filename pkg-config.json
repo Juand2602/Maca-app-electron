@@ -1,0 +1,7 @@
+{
+  "assets": [
+    "backend/node_modules/@prisma/client/libquery_engine-*",
+    "backend/node_modules/@prisma/client/*.node",
+    "backend/prisma/schema.prisma"
+  ]
+}

@@ -11,7 +11,7 @@
     "start": "npx electron .",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npx prisma generate && npx pkg . --targets node18-win-x64 --output ../dist-electron/backend.exe",
+    "build:backend": "cd backend && npx prisma generate && npx pkg . --config ../pkg-config.json --targets node18-win-x64 --output ../dist-electron/backend.exe",
     "electron:build": "npm run build && electron-builder",
     "release": "node scripts/release.js"
   },
