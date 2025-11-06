@@ -1,8 +1,16 @@
 {
-  "main": "backend/src/app.js",
-  "assets": [
-    "backend/node_modules/@prisma/client/libquery_engine-*",
-    "backend/node_modules/@prisma/client/*.node",
-    "backend/prisma/schema.prisma"
-  ]
+  "pkg": {
+    "assets": [
+      "backend/node_modules/@prisma/client/**/*",
+      "backend/node_modules/.prisma/**/*",
+      "backend/prisma/schema.prisma"
+    ],
+    "scripts": [
+      "backend/node_modules/@prisma/client/*.js"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist-electron"
+  }
 }

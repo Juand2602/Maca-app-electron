@@ -44,6 +44,24 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # ===== BUILD BACKEND (PKG) =====
+      
+      - name: 🔧 Build backend executable
+        run: npm run build:backend
+
+      # ===== VERIFICAR ARCHIVOS =====
+      
+      - name: 🔍 Verify backend.exe exists
+        run: |
+          if (Test-Path "dist-electron/backend.exe") {
+            Write-Host "✅ backend.exe encontrado"
+            Get-Item "dist-electron/backend.exe" | Format-List
+          } else {
+            Write-Host "❌ ERROR: backend.exe NO encontrado"
+            exit 1
+          }
+        shell: pwsh
+
       # ===== BUILD ELECTRON =====
       
       - name: 📱 Build Electron App
@@ -84,11 +102,6 @@ jobs:
             Si ya tienes la aplicación instalada:
             - Se actualizará automáticamente al iniciar
             - Recibirás una notificación cuando esté disponible
-            
-            ### 🔐 Licencias
-            - Cada instalación requiere una licencia válida
-            - La licencia se vincula al equipo donde se activa
-            - Contacta a soporte para obtener tu licencia
             
             ### 📝 Cambios en esta versión
             Ver notas de lanzamiento automáticas abajo.
