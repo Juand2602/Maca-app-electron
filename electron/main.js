@@ -48,7 +48,10 @@ async function startBackend() {
       };
     } else {
       // En producción, usamos el ejecutable .exe empaquetado
-      backendExecutablePath = path.join(process.resourcesPath, 'backend.exe');
+      // La ruta es ahora más robusta
+      const appPath = app.getAppPath();
+      backendExecutablePath = path.join(appPath, 'backend.exe');
+      
       backendProcessOptions = {
         args: [], // El ejecutable no necesita argumentos
         cwd: path.dirname(backendExecutablePath), // El directorio donde está el .exe
@@ -56,7 +59,8 @@ async function startBackend() {
           ...process.env,
           PORT: BACKEND_PORT,
           NODE_ENV: 'production',
-          DATABASE_URL: `file:${path.join(process.resourcesPath, 'database/calzado.db')}`
+          // La ruta de la BD debe ser relativa al ejecutable
+          DATABASE_URL: `file:${path.join(path.dirname(backendExecutablePath), 'database', 'calzado.db')}`
         },
         stdio: ['ignore', 'pipe', 'pipe']
       };
@@ -66,6 +70,8 @@ async function startBackend() {
     
     // Iniciar proceso del backend
     backendProcess = spawn(backendExecutablePath, backendProcessOptions.args, backendProcessOptions);
+    
+    // ... el resto de tu función (stdout, stderr, on('error'), etc.) se queda igual ...
     
     // Capturar logs del backend
     backendProcess.stdout.on('data', (data) => {
