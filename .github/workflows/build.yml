@@ -3,11 +3,11 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger en tags tipo v1.0.0, v1.2.3, etc.
+      - 'v*.*.*'
 
 jobs:
   release:
-    runs-on: windows-latest  # Solo Windows
+    runs-on: windows-latest
 
     steps:
       - name: 📥 Checkout code
@@ -19,8 +19,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # ===== INSTALAR DEPENDENCIAS =====
-      
       - name: 📦 Install root dependencies
         run: npm ci
 
@@ -32,14 +30,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # ===== GENERAR PRISMA CLIENT =====
-      
       - name: 🗄️ Generate Prisma Client
         working-directory: backend
         run: npx prisma generate
 
-      # ===== VERIFICAR CONFIGURACIÓN DE TAILWIND =====
-      
       - name: 🎨 Verify Tailwind setup
         working-directory: frontend
         run: |
@@ -51,9 +45,7 @@ jobs:
           if (Test-Path "postcss.config.js") { Write-Host "✅ postcss.config.js found" } else { Write-Host "❌ postcss.config.js NOT FOUND" }
           if (Test-Path "vite.config.js") { Write-Host "✅ vite.config.js found" } else { Write-Host "❌ vite.config.js NOT FOUND" }
         shell: pwsh
-      
-      # ===== BUILD FRONTEND =====
-      
+
       - name: 🔨 Build frontend
         working-directory: frontend
         run: |
@@ -68,31 +60,53 @@ jobs:
         env:
           NODE_ENV: production
 
-      # ===== BUILD BACKEND (PKG) =====
-      
-      - name: 🔧 Build backend executable
+      - name: 🔧 Build backend
         run: npm run build:backend
 
-      # ===== VERIFICAR ARCHIVOS =====
-      
-      - name: 🔍 Verify backend.exe exists
+      - name: 🔍 Verify backend files
+        working-directory: backend
         run: |
-          if (Test-Path "dist-electron/backend.exe") {
-            Write-Host "✅ backend.exe encontrado"
-            Get-Item "dist-electron/backend.exe" | Format-List
+          Write-Host "=== BACKEND FILES ===" -ForegroundColor Cyan
+          if (Test-Path "src/app.js") {
+            Write-Host "✅ app.js found" -ForegroundColor Green
           } else {
-            Write-Host "❌ ERROR: backend.exe NO encontrado"
+            Write-Host "❌ ERROR: app.js NOT found" -ForegroundColor Red
             exit 1
           }
+          
+          Write-Host ""
+          Write-Host "=== BACKEND ROUTES ===" -ForegroundColor Cyan
+          $routes = Get-ChildItem "src/routes" -Filter "*.js" -ErrorAction SilentlyContinue
+          if ($routes) {
+            Write-Host "✅ Routes found:" -ForegroundColor Green
+            $routes | ForEach-Object { Write-Host "   - $($_.Name)" }
+          } else {
+            Write-Host "❌ ERROR: No routes found" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== PRISMA CLIENT ===" -ForegroundColor Cyan
+          if (Test-Path "node_modules/.prisma/client") {
+            Write-Host "✅ Prisma Client generated" -ForegroundColor Green
+          } else {
+            Write-Host "❌ ERROR: Prisma Client NOT generated" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== NODE MODULES ===" -ForegroundColor Cyan
+          $nodeModulesSize = (Get-ChildItem "node_modules" -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "✅ node_modules size: $([math]::Round($nodeModulesSize, 2)) MB" -ForegroundColor Green
         shell: pwsh
 
-      # ===== VERIFICAR BUILD COMPLETO =====
-      
       - name: 🔍 Verify complete build
         run: |
-          echo "=== FRONTEND BUILD ==="
+          Write-Host "=== FRONTEND BUILD ===" -ForegroundColor Cyan
           if (Test-Path "frontend\dist\index.html") {
             Write-Host "✅ index.html exists" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "First 20 lines of index.html:" -ForegroundColor Yellow
             Get-Content "frontend\dist\index.html" -Head 20
           } else {
             Write-Host "❌ index.html NOT FOUND" -ForegroundColor Red
@@ -100,13 +114,13 @@ jobs:
           }
           
           Write-Host ""
-          Write-Host "=== CSS FILES ==="
+          Write-Host "=== CSS FILES ===" -ForegroundColor Cyan
           $cssFiles = Get-ChildItem "frontend\dist\assets\*.css" -ErrorAction SilentlyContinue
           if ($cssFiles) {
             Write-Host "✅ CSS files found:" -ForegroundColor Green
-            $cssFiles | ForEach-Object { Write-Host $_.Name "(" $_.Length "bytes)" }
+            $cssFiles | ForEach-Object { Write-Host "   - $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" }
             Write-Host ""
-            Write-Host "CSS content preview:"
+            Write-Host "CSS content preview (first 30 lines):" -ForegroundColor Yellow
             Get-Content $cssFiles[0].FullName -Head 30
           } else {
             Write-Host "❌ NO CSS FILES FOUND" -ForegroundColor Red
@@ -114,34 +128,69 @@ jobs:
           }
           
           Write-Host ""
-          Write-Host "=== BACKEND BUILD ==="
-          if (Test-Path "dist-electron\backend.exe") {
-            Write-Host "✅ backend.exe exists" -ForegroundColor Green
-            Get-Item "dist-electron\backend.exe" | ForEach-Object { Write-Host $_.Name "(" $_.Length "bytes)" }
+          Write-Host "=== JAVASCRIPT FILES ===" -ForegroundColor Cyan
+          $jsFiles = Get-ChildItem "frontend\dist\assets\*.js" -ErrorAction SilentlyContinue
+          if ($jsFiles) {
+            Write-Host "✅ JS files found:" -ForegroundColor Green
+            $jsFiles | ForEach-Object { Write-Host "   - $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" }
           } else {
-            Write-Host "❌ backend.exe NOT FOUND" -ForegroundColor Red
+            Write-Host "❌ NO JS FILES FOUND" -ForegroundColor Red
             exit 1
           }
+          
+          Write-Host ""
+          Write-Host "=== DATABASE ===" -ForegroundColor Cyan
+          if (Test-Path "database\calzado.db") {
+            Write-Host "✅ Database file exists" -ForegroundColor Green
+            $dbSize = (Get-Item "database\calzado.db").Length / 1KB
+            Write-Host "   Size: $([math]::Round($dbSize, 2)) KB"
+          } else {
+            Write-Host "⚠️ WARNING: Database file NOT FOUND (will be created on first run)" -ForegroundColor Yellow
+          }
         shell: pwsh
-      
-      # ===== BUILD ELECTRON =====
-      
+
       - name: 📱 Build Electron App
         run: npm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ===== GET VERSION =====
-      
+      - name: 🔍 Verify installer
+        run: |
+          Write-Host "=== ELECTRON BUILD OUTPUT ===" -ForegroundColor Cyan
+          
+          $exeFiles = Get-ChildItem "dist-electron" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if ($exeFiles) {
+            Write-Host "✅ Installers found:" -ForegroundColor Green
+            $exeFiles | ForEach-Object { 
+              $sizeMB = [math]::Round($_.Length / 1MB, 2)
+              Write-Host "   - $($_.Name) ($sizeMB MB)"
+            }
+          } else {
+            Write-Host "❌ ERROR: No .exe files found in dist-electron" -ForegroundColor Red
+            Write-Host "Contents of dist-electron:" -ForegroundColor Yellow
+            Get-ChildItem "dist-electron" -Recurse | Select-Object FullName
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== UPDATE FILES ===" -ForegroundColor Cyan
+          $ymlFiles = Get-ChildItem "dist-electron" -Filter "*.yml" -ErrorAction SilentlyContinue
+          if ($ymlFiles) {
+            Write-Host "✅ Update files found:" -ForegroundColor Green
+            $ymlFiles | ForEach-Object { Write-Host "   - $($_.Name)" }
+          } else {
+            Write-Host "⚠️ WARNING: No .yml update files found" -ForegroundColor Yellow
+          }
+        shell: pwsh
+
       - name: 📋 Get version
         id: version
         run: |
           $version = node -p "require('./package.json').version"
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version" -ForegroundColor Green
         shell: pwsh
 
-      # ===== CREATE RELEASE =====
-      
       - name: 🚀 Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -158,12 +207,20 @@ jobs:
             1. Descarga `Sistema-Calzado-Setup-${{ steps.version.outputs.VERSION }}.exe`
             2. Ejecuta el instalador
             3. Sigue las instrucciones en pantalla
-            4. Al abrir, activa tu licencia
+            4. La aplicación se iniciará automáticamente
             
             ### 🔄 Actualización automática
             Si ya tienes la aplicación instalada:
             - Se actualizará automáticamente al iniciar
             - Recibirás una notificación cuando esté disponible
+            - Puedes instalar sobre la versión anterior sin desinstalar
+            
+            ### ✨ Características
+            - ✅ Backend integrado (no requiere instalación separada)
+            - ✅ Base de datos SQLite incluida
+            - ✅ Interfaz moderna con React + Tailwind
+            - ✅ Sistema de autenticación seguro
+            - ✅ Gestión de inventario, ventas y proveedores
             
             ### 📝 Cambios en esta versión
             Ver notas de lanzamiento automáticas abajo.
@@ -174,10 +231,20 @@ jobs:
             - Windows 10/11 (64-bit)
             - 4GB RAM mínimo
             - 500MB espacio en disco
+            
+            **🐛 ¿Problemas?**
+            - Reporta bugs en [Issues](https://github.com/Juand2602/Maca-app-electron/issues)
+            - Consulta la documentación en el [Wiki](https://github.com/Juand2602/Maca-app-electron/wiki)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: ✅ Success
         run: |
-          echo "✅ Release v${{ steps.version.outputs.VERSION }} created successfully!"
-          echo "📦 Instalador disponible en GitHub Releases"
+          Write-Host ""
+          Write-Host "================================================" -ForegroundColor Green
+          Write-Host "✅ Release created successfully!" -ForegroundColor Green
+          Write-Host "================================================" -ForegroundColor Green
+          Write-Host ""
+          Write-Host "📦 Instalador disponible en GitHub Releases" -ForegroundColor Cyan
+          Write-Host ""
+        shell: pwsh
