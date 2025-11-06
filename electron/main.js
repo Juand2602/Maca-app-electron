@@ -5,6 +5,7 @@ const { spawn } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 const axios = require("axios");
 const log = require("electron-log");
+const fs = require("fs");
 
 let mainWindow;
 let backendProcess;
@@ -18,6 +19,48 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = "info";
 
 log.info("App starting...");
+
+// ============= FUNCIONES AUXILIARES =============
+
+function getNodeExecutable() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    // En desarrollo, usar Node.js del sistema
+    return process.platform === 'win32' ? 'node.exe' : 'node';
+  } else {
+    // En producción, usar Node.js portable incluido
+    const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
+    
+    if (!fs.existsSync(nodePath)) {
+      log.error('Node.js portable not found at:', nodePath);
+      throw new Error('Node.js portable no encontrado');
+    }
+    
+    log.info('Using portable Node.js at:', nodePath);
+    return nodePath;
+  }
+}
+
+function getBackendPath() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    return path.join(__dirname, "../backend/src/app.js");
+  } else {
+    return path.join(process.resourcesPath, "backend", "src", "app.js");
+  }
+}
+
+function getDatabasePath() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    return path.join(__dirname, "../database/calzado.db");
+  } else {
+    return path.join(process.resourcesPath, "database", "calzado.db");
+  }
+}
 
 // ============= AUTO-UPDATER =============
 
@@ -82,98 +125,86 @@ async function startBackend() {
 
     const isDev = !app.isPackaged;
 
-    let backendExecutablePath;
-    let backendProcessOptions;
+    try {
+      const nodeExecutable = getNodeExecutable();
+      const backendScript = getBackendPath();
+      const databasePath = getDatabasePath();
 
-    if (isDev) {
-      backendExecutablePath = "node";
-      const scriptPath = path.join(__dirname, "../backend/src/app.js");
-      backendProcessOptions = {
-        args: [scriptPath],
-        cwd: path.join(__dirname, "../backend"),
-        env: {
-          ...process.env,
-          PORT: BACKEND_PORT,
-          NODE_ENV: "development",
-          DATABASE_URL: `file:${path.join(
-            __dirname,
-            "../database/calzado.db"
-          )}`,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      };
-    } else {
-      backendExecutablePath = path.join(process.resourcesPath, "backend.exe");
+      console.log("Node executable:", nodeExecutable);
+      console.log("Backend script:", backendScript);
+      console.log("Database path:", databasePath);
 
-      backendProcessOptions = {
-        args: [],
-        cwd: path.dirname(backendExecutablePath),
-        env: {
-          ...process.env,
-          PORT: BACKEND_PORT,
-          NODE_ENV: "production",
-          DATABASE_URL: `file:${path.join(
-            process.resourcesPath,
-            "database",
-            "calzado.db"
-          )}`,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      };
-    }
-
-    console.log("Backend executable path:", backendExecutablePath);
-    console.log("Backend options:", backendProcessOptions);
-
-    backendProcess = spawn(
-      backendExecutablePath,
-      backendProcessOptions.args,
-      backendProcessOptions
-    );
-
-    let backendStarted = false;
-
-    backendProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      console.log("[Backend]", output);
-
-      // Detectar cuando el servidor está listo
-      if ((output.includes("Server") || output.includes("listening") || output.includes("Sistema Calzado API")) && !backendStarted) {
-        backendStarted = true;
-        console.log("✅ Backend started successfully");
-        // Esperar 2 segundos adicionales para asegurar que está completamente listo
-        setTimeout(() => resolve(), 2000);
+      // Verificar que los archivos existen
+      if (!fs.existsSync(backendScript)) {
+        throw new Error(`Backend script not found: ${backendScript}`);
       }
-    });
 
-    backendProcess.stderr.on("data", (data) => {
-      console.error("[Backend Error]", data.toString());
-    });
+      const backendDir = path.dirname(backendScript);
+      const env = {
+        ...process.env,
+        PORT: BACKEND_PORT,
+        NODE_ENV: isDev ? "development" : "production",
+        DATABASE_URL: `file:${databasePath}`,
+      };
 
-    backendProcess.on("error", (error) => {
-      console.error("Failed to start backend:", error);
+      console.log("Starting backend with:");
+      console.log("  Working dir:", backendDir);
+      console.log("  Environment:", env.NODE_ENV);
+
+      backendProcess = spawn(nodeExecutable, [backendScript], {
+        cwd: backendDir,
+        env: env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let backendStarted = false;
+
+      backendProcess.stdout.on("data", (data) => {
+        const output = data.toString();
+        console.log("[Backend]", output);
+
+        if ((output.includes("Server") || 
+             output.includes("listening") || 
+             output.includes("Sistema Calzado API")) && 
+            !backendStarted) {
+          backendStarted = true;
+          console.log("✅ Backend started successfully");
+          setTimeout(() => resolve(), 2000);
+        }
+      });
+
+      backendProcess.stderr.on("data", (data) => {
+        console.error("[Backend Error]", data.toString());
+      });
+
+      backendProcess.on("error", (error) => {
+        console.error("Failed to start backend:", error);
+        reject(error);
+      });
+
+      backendProcess.on("exit", (code) => {
+        console.log(`Backend process exited with code ${code}`);
+        if (code !== 0 && code !== null && !backendStarted) {
+          reject(new Error(`Backend exited with code ${code}`));
+        }
+      });
+
+      // Timeout de seguridad
+      setTimeout(() => {
+        if (!backendStarted) {
+          console.log("⚠️ Backend timeout reached, assuming started");
+          resolve();
+        }
+      }, 15000);
+    } catch (error) {
+      console.error("Error setting up backend:", error);
       reject(error);
-    });
-
-    backendProcess.on("exit", (code) => {
-      console.log(`Backend process exited with code ${code}`);
-      if (code !== 0 && code !== null && !backendStarted) {
-        reject(new Error(`Backend exited with code ${code}`));
-      }
-    });
-
-    // Timeout de seguridad aumentado a 20 segundos
-    setTimeout(() => {
-      if (!backendStarted) {
-        console.log("⚠️ Backend timeout reached, assuming started");
-        resolve();
-      }
-    }, 20000);
+    }
   });
 }
 
 async function waitForBackend() {
-  const maxAttempts = 40; // Aumentado de 30 a 40
+  const maxAttempts = 30;
   const delay = 1000;
 
   console.log("🔍 Waiting for backend to be ready...");
@@ -183,9 +214,7 @@ async function waitForBackend() {
       console.log(`   Attempt ${i + 1}/${maxAttempts}...`);
       const response = await axios.get(
         `http://localhost:${BACKEND_PORT}/health`,
-        {
-          timeout: 3000,
-        }
+        { timeout: 3000 }
       );
 
       if (response.data.status === "ok") {
@@ -194,7 +223,6 @@ async function waitForBackend() {
         return true;
       }
     } catch (error) {
-      // Backend aún no está listo, esperar
       if (i === maxAttempts - 1) {
         console.error("❌ Backend health check failed after all attempts");
         console.error("   Last error:", error.message);
@@ -203,13 +231,20 @@ async function waitForBackend() {
     }
   }
 
-  throw new Error("Backend failed to start after 40 seconds");
+  throw new Error("Backend failed to start after 30 seconds");
 }
 
 function stopBackend() {
   if (backendProcess && !backendProcess.killed) {
     console.log("🛑 Stopping backend server...");
-    backendProcess.kill();
+    
+    // En Windows, matar el proceso y sus hijos
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
+    } else {
+      backendProcess.kill();
+    }
+    
     backendProcess = null;
   }
 }
@@ -315,18 +350,15 @@ function createMainWindow() {
 
   const isDev = !app.isPackaged;
 
-  // CORRECCIÓN: Ruta correcta para producción
   const startUrl = isDev
     ? `http://localhost:${FRONTEND_PORT}`
     : `file://${path.join(__dirname, "../frontend/dist/index.html")}`;
 
   console.log("📂 Loading frontend from:", startUrl);
   console.log("   Is packaged:", app.isPackaged);
-  console.log("   __dirname:", __dirname);
 
   mainWindow.loadURL(startUrl);
 
-  // En desarrollo, abrir DevTools
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
@@ -349,19 +381,15 @@ async function initializeApp() {
     console.log("🚀 Initializing Sistema Calzado...");
     console.log("   Environment:", app.isPackaged ? "PRODUCTION" : "DEVELOPMENT");
 
-    // 1. Iniciar backend
     console.log("\n📡 Step 1: Starting backend...");
     await startBackend();
 
-    // 2. Esperar a que el backend esté listo
     console.log("\n🔍 Step 2: Verifying backend health...");
     await waitForBackend();
 
-    // 3. Crear ventana principal
     console.log("\n🖥️  Step 3: Creating main window...");
     const mainWindow = createMainWindow();
 
-    // 4. Esperar a que la ventana esté lista
     mainWindow.once("ready-to-show", () => {
       console.log("\n✅ Step 4: Window ready, showing application...");
       setTimeout(() => {
@@ -371,10 +399,9 @@ async function initializeApp() {
         mainWindow.show();
         mainWindow.maximize();
         console.log("🎉 Application ready!");
-      }, 1000); // Delay adicional para asegurar que todo está cargado
+      }, 1000);
     });
 
-    // Timeout de seguridad para cerrar splash
     setTimeout(() => {
       if (splash && !splash.isDestroyed()) {
         console.log("⚠️ Force closing splash after timeout");
@@ -385,7 +412,6 @@ async function initializeApp() {
       }
     }, 15000);
 
-    // Auto-updater (solo en producción)
     if (app.isPackaged) {
       log.info("Setting up auto-updater...");
       setupAutoUpdater();
@@ -444,9 +470,7 @@ ipcMain.handle("check-backend-status", async () => {
   try {
     const response = await axios.get(
       `http://localhost:${BACKEND_PORT}/health`,
-      {
-        timeout: 2000,
-      }
+      { timeout: 2000 }
     );
     return response.data.status === "ok";
   } catch (error) {
