@@ -29,16 +29,31 @@ function getNodeExecutable() {
     // En desarrollo, usar Node.js del sistema
     return process.platform === 'win32' ? 'node.exe' : 'node';
   } else {
-    // En producción, usar Node.js portable incluido
-    const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
+    // En producción, usar el Node.js que viene con Electron
+    // Electron siempre incluye Node.js en process.execPath
+    const electronPath = process.execPath;
+    const electronDir = path.dirname(electronPath);
     
-    if (!fs.existsSync(nodePath)) {
-      log.error('Node.js portable not found at:', nodePath);
-      throw new Error('Node.js portable no encontrado');
+    // Buscar node.exe en varios lugares posibles
+    const possiblePaths = [
+      path.join(electronDir, 'node.exe'),                    // Junto al ejecutable
+      path.join(process.resourcesPath, 'node', 'node.exe'), // En resources/node
+      path.join(electronDir, '..', 'node.exe'),             // Un nivel arriba
+      process.execPath                                       // Usar Electron mismo (último recurso)
+    ];
+    
+    for (const nodePath of possiblePaths) {
+      if (fs.existsSync(nodePath)) {
+        log.info('Using Node.js at:', nodePath);
+        console.log('✅ Node.js found at:', nodePath);
+        return nodePath;
+      }
     }
     
-    log.info('Using portable Node.js at:', nodePath);
-    return nodePath;
+    // Si no encuentra node.exe, usar el proceso de Electron
+    log.warn('Node.js not found, using Electron process');
+    console.log('⚠️ Using Electron process as Node.js');
+    return process.execPath;
   }
 }
 
