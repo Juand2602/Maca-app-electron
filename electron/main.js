@@ -27,8 +27,9 @@ function isAppInstalled() {
   
   const appPath = app.getAppPath().toLowerCase();
   const exePath = app.getPath('exe').toLowerCase();
+  const exeDir = path.dirname(exePath);
   
-  // La app está instalada si está en Program Files o AppData\Local\Programs
+  // Método 1: Verificar si está en carpetas típicas de instalación
   const isInProgramFiles = appPath.includes('program files') || 
                            appPath.includes('programfiles') ||
                            exePath.includes('program files') ||
@@ -37,16 +38,45 @@ function isAppInstalled() {
   const isInAppData = appPath.includes('appdata\\local\\programs') ||
                       exePath.includes('appdata\\local\\programs');
   
-  const installed = isInProgramFiles || isInAppData;
+  // Método 2: Verificar si el ejecutable NO está en win-unpacked (modo portable)
+  const isInUnpacked = exePath.includes('win-unpacked') || appPath.includes('win-unpacked');
+  
+  // Método 3: Verificar si existe el archivo uninstall.exe (creado por NSIS)
+  const uninstallPath = path.join(exeDir, 'Uninstall Sistema Calzado.exe');
+  const hasUninstaller = fs.existsSync(uninstallPath);
+  
+  // Método 4: Verificar archivo marker .installed
+  const markerPath = path.join(exeDir, '.installed');
+  const hasMarker = fs.existsSync(markerPath);
+  
+  // Método 5: Verificar si resources está empaquetado en app.asar
+  const hasAsar = fs.existsSync(path.join(exeDir, 'resources', 'app.asar'));
+  
+  // La app está instalada si:
+  // - Tiene un desinstalador (NSIS), O
+  // - Tiene el archivo marker, O
+  // - Está empaquetada con ASAR (no portable), Y
+  // - NO está en win-unpacked
+  const installed = (hasUninstaller || hasMarker || hasAsar) && !isInUnpacked;
   
   log.info('='.repeat(60));
   log.info('INSTALLATION DETECTION');
   log.info('='.repeat(60));
   log.info('App path:', appPath);
   log.info('Exe path:', exePath);
+  log.info('Exe directory:', exeDir);
+  log.info('─'.repeat(60));
+  log.info('Uninstaller path:', uninstallPath);
+  log.info('Has uninstaller:', hasUninstaller);
+  log.info('Marker path:', markerPath);
+  log.info('Has marker:', hasMarker);
+  log.info('Has ASAR:', hasAsar);
+  log.info('─'.repeat(60));
   log.info('Is in Program Files:', isInProgramFiles);
   log.info('Is in AppData:', isInAppData);
-  log.info('Is installed:', installed);
+  log.info('Is in win-unpacked:', isInUnpacked);
+  log.info('─'.repeat(60));
+  log.info('🎯 IS INSTALLED:', installed);
   log.info('='.repeat(60));
   
   return installed;
@@ -412,10 +442,15 @@ function createMainWindow() {
     width: 1400,
     height: 900,
     show: false,
+    backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      enableRemoteModule: false,
       preload: path.join(__dirname, "preload.js"),
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      devTools: true // Permitir DevTools incluso en producción
     },
   });
 
@@ -425,11 +460,89 @@ function createMainWindow() {
     : `file://${path.join(__dirname, "../frontend/dist/index.html")}`;
 
   log.info("📂 Loading:", startUrl);
-  mainWindow.loadURL(startUrl);
+  log.info("   Is dev:", isDev);
+  log.info("   __dirname:", __dirname);
+  
+  // Verificar que el archivo existe en producción
+  if (!isDev) {
+    const indexPath = path.join(__dirname, "../frontend/dist/index.html");
+    if (!fs.existsSync(indexPath)) {
+      log.error("❌ index.html not found at:", indexPath);
+      log.error("   Directory contents:");
+      const distDir = path.join(__dirname, "../frontend/dist");
+      if (fs.existsSync(distDir)) {
+        fs.readdirSync(distDir).forEach(file => {
+          log.error("     -", file);
+        });
+      } else {
+        log.error("   dist directory does not exist!");
+      }
+    } else {
+      log.info("✅ index.html found at:", indexPath);
+    }
+  }
+  
+  mainWindow.loadURL(startUrl).catch(err => {
+    log.error("Failed to load URL:", err);
+  });
 
-  if (isDev) mainWindow.webContents.openDevTools();
+  // Eventos de carga para debugging
+  mainWindow.webContents.on('did-start-loading', () => {
+    log.info("🔄 Started loading...");
+  });
 
-  mainWindow.on("closed", () => { mainWindow = null; });
+  mainWindow.webContents.on('did-stop-loading', () => {
+    log.info("⏹️ Stopped loading");
+  });
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    log.error('❌ Page failed to load:', {
+      errorCode,
+      errorDescription,
+      validatedURL
+    });
+    
+    // Abrir DevTools automáticamente cuando hay error
+    if (!mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.openDevTools();
+    }
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    log.info('✅ Page finished loading');
+  });
+
+  mainWindow.webContents.on('dom-ready', () => {
+    log.info('✅ DOM is ready');
+  });
+
+  // Capturar errores de JavaScript
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    if (level === 2 || level === 3) { // Warning o Error
+      log.error(`[Renderer] ${message} (${sourceId}:${line})`);
+    }
+  });
+
+  // En desarrollo, abrir DevTools siempre
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
+  
+  // Atajo para abrir DevTools en producción: Ctrl+Shift+I
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow.webContents.openDevTools();
+      }
+      event.preventDefault();
+    }
+  });
+
+  mainWindow.on("closed", () => { 
+    mainWindow = null; 
+  });
 
   return mainWindow;
 }
@@ -448,13 +561,47 @@ async function initializeApp() {
 
     const mainWin = createMainWindow();
 
+    // Timeout de seguridad para mostrar la ventana
+    const showWindowTimeout = setTimeout(() => {
+      log.warn("Window show timeout - forcing display");
+      if (splash && !splash.isDestroyed()) splash.close();
+      mainWin.show();
+    }, 10000); // 10 segundos máximo
+
     mainWin.once("ready-to-show", () => {
+      clearTimeout(showWindowTimeout);
       setTimeout(() => {
         if (splash && !splash.isDestroyed()) splash.close();
         mainWin.show();
         mainWin.maximize();
-        log.info("🎉 Ready!");
+        log.info("🎉 Window ready and visible!");
       }, 1000);
+    });
+
+    // Fallback si ready-to-show no se dispara
+    mainWin.webContents.once('did-finish-load', () => {
+      log.info("Page loaded - ready to show");
+    });
+
+    mainWin.webContents.once('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+      log.error("Failed to load page:", {
+        errorCode,
+        errorDescription,
+        validatedURL
+      });
+      
+      clearTimeout(showWindowTimeout);
+      if (splash && !splash.isDestroyed()) splash.close();
+      
+      dialog.showErrorBox(
+        "Error al cargar la interfaz",
+        `No se pudo cargar la aplicación:\n\n` +
+        `Código: ${errorCode}\n` +
+        `Descripción: ${errorDescription}\n\n` +
+        `URL: ${validatedURL}`
+      );
+      
+      app.quit();
     });
 
     if (app.isPackaged && isInstalled) {
