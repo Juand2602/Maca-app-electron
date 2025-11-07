@@ -6,29 +6,67 @@ const axios = require("axios");
 const log = require("electron-log");
 const fs = require("fs");
 
-// Auto-updater - cargar solo si está disponible
-let autoUpdater = null;
-const isInstalled = process.env.PORTABLE_EXECUTABLE_DIR === undefined;
-
-if (isInstalled) {
-  try {
-    autoUpdater = require("electron-updater").autoUpdater;
-    log.info("Auto-updater loaded successfully");
-  } catch (e) {
-    log.error("Failed to load electron-updater:", e.message);
-  }
-} else {
-  log.info("Running in portable mode, auto-updater disabled");
-}
-
 let mainWindow;
 let backendProcess;
 const BACKEND_PORT = 3000;
 const FRONTEND_PORT = 5173;
 
 log.transports.file.level = "info";
-autoUpdater.logger = log;
 log.info("App starting...");
+
+// ============= AUTO-UPDATER SETUP =============
+
+let autoUpdater = null;
+
+// Detectar si la app está instalada
+function isAppInstalled() {
+  if (!app.isPackaged) {
+    log.info("Running in development mode");
+    return false;
+  }
+  
+  const appPath = app.getAppPath().toLowerCase();
+  const exePath = app.getPath('exe').toLowerCase();
+  
+  // La app está instalada si está en Program Files o AppData\Local\Programs
+  const isInProgramFiles = appPath.includes('program files') || 
+                           appPath.includes('programfiles') ||
+                           exePath.includes('program files') ||
+                           exePath.includes('programfiles');
+  
+  const isInAppData = appPath.includes('appdata\\local\\programs') ||
+                      exePath.includes('appdata\\local\\programs');
+  
+  const installed = isInProgramFiles || isInAppData;
+  
+  log.info('='.repeat(60));
+  log.info('INSTALLATION DETECTION');
+  log.info('='.repeat(60));
+  log.info('App path:', appPath);
+  log.info('Exe path:', exePath);
+  log.info('Is in Program Files:', isInProgramFiles);
+  log.info('Is in AppData:', isInAppData);
+  log.info('Is installed:', installed);
+  log.info('='.repeat(60));
+  
+  return installed;
+}
+
+const isInstalled = isAppInstalled();
+
+// Cargar auto-updater solo si está instalada
+if (isInstalled) {
+  try {
+    autoUpdater = require("electron-updater").autoUpdater;
+    autoUpdater.logger = log;
+    log.info("✅ Auto-updater loaded successfully");
+  } catch (e) {
+    log.error("❌ Failed to load electron-updater:", e.message);
+    log.error("Stack:", e.stack);
+  }
+} else {
+  log.warn("⚠️ Running in portable/dev mode - auto-updater disabled");
+}
 
 // ============= FUNCIONES AUXILIARES =============
 
@@ -39,9 +77,7 @@ function getNodeExecutable() {
     return process.platform === 'win32' ? 'node' : 'node';
   }
   
-  // En producción: buscar Node.js portable
   const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
-  
   log.info('Looking for Node.js at:', nodePath);
   
   if (fs.existsSync(nodePath)) {
@@ -51,7 +87,7 @@ function getNodeExecutable() {
   
   log.error('❌ Node.js portable NOT found');
   log.info('Trying system Node.js as fallback...');
-  return 'node'; // Fallback al Node.js del sistema
+  return 'node';
 }
 
 function getBackendPath() {
@@ -61,9 +97,7 @@ function getBackendPath() {
     return path.join(__dirname, "../backend/src/app.js");
   }
   
-  // En producción: siempre en resources/backend
   const backendPath = path.join(process.resourcesPath, "backend", "src", "app.js");
-  
   log.info('Backend path:', backendPath);
   
   if (!fs.existsSync(backendPath)) {
@@ -81,18 +115,16 @@ function getDatabasePath() {
     return path.join(__dirname, "../database/calzado.db");
   }
   
-  // En producción: usar userData para que sea escribible
   const userDataPath = app.getPath('userData');
   const dbPath = path.join(userDataPath, 'calzado.db');
   
-  // Copiar DB inicial si no existe
   if (!fs.existsSync(dbPath)) {
     const templateDb = path.join(process.resourcesPath, "database", "calzado.db");
     if (fs.existsSync(templateDb)) {
       fs.copyFileSync(templateDb, dbPath);
       log.info('✅ Database copied to userData');
     } else {
-      log.warn('⚠️ Template database not found, will be created on first run');
+      log.warn('⚠️ Template database not found');
     }
   }
   
@@ -113,35 +145,63 @@ function getBackendNodeModules() {
 
 function setupAutoUpdater() {
   if (!autoUpdater) {
-    log.warn("Auto-updater not available, skipping setup");
+    log.warn("Auto-updater not available");
     return;
   }
   
   log.info("Configuring auto-updater...");
+  
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
+  autoUpdater.on("checking-for-update", () => {
+    log.info("Checking for updates...");
+  });
+
   autoUpdater.on("update-available", (info) => {
     log.info("Update available:", info);
-    if (mainWindow) mainWindow.webContents.send("update-available", info);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-available", info);
+    }
+  });
+
+  autoUpdater.on("update-not-available", (info) => {
+    log.info("No updates available:", info);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-not-available", info);
+    }
   });
 
   autoUpdater.on("error", (err) => {
-    log.error("Error in auto-updater:", err);
-    if (mainWindow) mainWindow.webContents.send("update-error", err);
+    log.error("Auto-updater error:", err);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", {
+        message: err.message,
+        stack: err.stack
+      });
+    }
   });
 
   autoUpdater.on("download-progress", (progressObj) => {
-    if (mainWindow) mainWindow.webContents.send("download-progress", progressObj);
+    const message = `Downloaded ${progressObj.percent.toFixed(2)}%`;
+    log.info(message);
+    if (mainWindow) {
+      mainWindow.webContents.send("download-progress", progressObj);
+    }
   });
 
   autoUpdater.on("update-downloaded", (info) => {
     log.info("Update downloaded:", info);
-    if (mainWindow) mainWindow.webContents.send("update-downloaded", info);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-downloaded", info);
+    }
   });
 
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(err => log.error("Update check failed:", err));
+    log.info("Starting automatic update check...");
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error("Update check failed:", err);
+    });
   }, 10000);
 }
 
@@ -163,28 +223,18 @@ async function startBackend() {
       log.info("Backend script:", backendScript);
       log.info("Database path:", databasePath);
       log.info("Node modules:", nodeModulesPath);
-      log.info("Is packaged:", app.isPackaged);
 
       const backendDir = path.dirname(backendScript);
       
-      // Configurar variables de entorno
       const env = {
         ...process.env,
         PORT: BACKEND_PORT.toString(),
         NODE_ENV: isDev ? "development" : "production",
         DATABASE_URL: `file:${databasePath}`,
         NODE_PATH: nodeModulesPath,
-        // Importante: agregar node_modules/.bin al PATH
         PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
       };
 
-      log.info("Starting backend with env:", {
-        PORT: env.PORT,
-        NODE_ENV: env.NODE_ENV,
-        DATABASE_URL: env.DATABASE_URL
-      });
-
-      // Spawn del proceso
       const spawnOptions = {
         cwd: backendDir,
         env: env,
@@ -192,7 +242,6 @@ async function startBackend() {
         windowsHide: true
       };
 
-      // En producción, no usar shell para evitar problemas con rutas
       if (!isDev) {
         spawnOptions.shell = false;
       }
@@ -237,11 +286,9 @@ async function startBackend() {
         }
       });
 
-      // Timeout de seguridad
       setTimeout(() => {
         if (!backendStarted) {
           log.warn("⚠️ Backend timeout - verificando conectividad...");
-          // No rechazamos aún, el waitForBackend verificará
           resolve();
         }
       }, 15000);
@@ -399,18 +446,20 @@ async function initializeApp() {
     await startBackend();
     await waitForBackend();
 
-    const mainWindow = createMainWindow();
+    const mainWin = createMainWindow();
 
-    mainWindow.once("ready-to-show", () => {
+    mainWin.once("ready-to-show", () => {
       setTimeout(() => {
         if (splash && !splash.isDestroyed()) splash.close();
-        mainWindow.show();
-        mainWindow.maximize();
+        mainWin.show();
+        mainWin.maximize();
         log.info("🎉 Ready!");
       }, 1000);
     });
 
-    if (app.isPackaged) setupAutoUpdater();
+    if (app.isPackaged && isInstalled) {
+      setupAutoUpdater();
+    }
     
   } catch (error) {
     log.error("❌ Init failed:", error);
@@ -444,10 +493,27 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", stopBackend);
 
-// ============= IPC =============
+// ============= IPC HANDLERS =============
 
-ipcMain.handle("get-backend-url", () => `http://localhost:${BACKEND_PORT}`);
-ipcMain.handle("is-electron", () => true);
+ipcMain.handle("get-backend-url", () => {
+  return `http://localhost:${BACKEND_PORT}`;
+});
+
+ipcMain.handle("is-electron", () => {
+  return true;
+});
+
+ipcMain.handle("is-auto-updater-available", () => {
+  const available = autoUpdater !== null && app.isPackaged && isInstalled;
+  log.info("Auto-updater availability check:", {
+    autoUpdaterExists: autoUpdater !== null,
+    isPackaged: app.isPackaged,
+    isInstalled: isInstalled,
+    result: available
+  });
+  return available;
+});
+
 ipcMain.handle("check-backend-status", async () => {
   try {
     const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { timeout: 2000 });
@@ -456,33 +522,92 @@ ipcMain.handle("check-backend-status", async () => {
     return false;
   }
 });
-ipcMain.handle("get-user-data-path", () => app.getPath("userData"));
-ipcMain.handle("get-app-version", () => app.getVersion());
+
+ipcMain.handle("get-user-data-path", () => {
+  return app.getPath("userData");
+});
+
+ipcMain.handle("get-app-version", () => {
+  return app.getVersion();
+});
+
+// ============= IPC EVENTS =============
 
 ipcMain.on("check-for-updates", () => {
-  if (app.isPackaged && autoUpdater) {
-    autoUpdater.checkForUpdates().catch(err => log.error(err));
-  } else {
-    log.warn("Auto-updater not available");
+  log.info("Manual update check requested");
+  
+  if (!app.isPackaged) {
+    log.warn("Cannot check for updates in development mode");
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", {
+        message: "Las actualizaciones no están disponibles en modo desarrollo"
+      });
+    }
+    return;
   }
+  
+  if (!isInstalled) {
+    log.warn("Cannot check for updates in portable mode");
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", {
+        message: "Las actualizaciones no están disponibles en modo portable. Instala la aplicación."
+      });
+    }
+    return;
+  }
+  
+  if (!autoUpdater) {
+    log.error("Auto-updater not loaded");
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", {
+        message: "El sistema de actualizaciones no está disponible"
+      });
+    }
+    return;
+  }
+  
+  autoUpdater.checkForUpdates()
+    .then(() => log.info("Update check initiated"))
+    .catch(err => {
+      log.error("Update check failed:", err);
+      if (mainWindow) {
+        mainWindow.webContents.send("update-error", {
+          message: err.message || "Error al verificar actualizaciones"
+        });
+      }
+    });
 });
 
 ipcMain.on("download-update", () => {
-  if (app.isPackaged && autoUpdater) {
-    autoUpdater.downloadUpdate().catch(err => log.error(err));
+  log.info("Manual update download requested");
+  
+  if (autoUpdater && app.isPackaged && isInstalled) {
+    autoUpdater.downloadUpdate()
+      .then(() => log.info("Update download initiated"))
+      .catch(err => {
+        log.error("Update download failed:", err);
+        if (mainWindow) {
+          mainWindow.webContents.send("update-error", {
+            message: err.message || "Error al descargar actualización"
+          });
+        }
+      });
   } else {
-    log.warn("Auto-updater not available");
+    log.warn("Cannot download update - auto-updater not available");
   }
 });
 
 ipcMain.on("restart-app", () => {
-  if (autoUpdater) {
+  log.info("App restart requested");
+  if (autoUpdater && app.isPackaged && isInstalled) {
     autoUpdater.quitAndInstall(false, true);
   } else {
     app.relaunch();
     app.exit(0);
   }
 });
+
+// ============= ERROR HANDLING =============
 
 process.on("uncaughtException", (error) => {
   log.error("Uncaught exception:", error);
