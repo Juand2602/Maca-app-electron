@@ -14,6 +14,7 @@
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm install && npx prisma generate",
     "electron:build": "npm run build && electron-builder",
+    "test:build": "node scripts/test-build.js",
     "release": "node scripts/release.js"
   },
   "keywords": ["electron", "calzado", "gestión"],
@@ -41,7 +42,13 @@
     "files": [
       "electron/**/*",
       "frontend/dist/**/*",
-      "!node_modules/**/*"
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,readme.md}",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/*.d.ts",
+      "!node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
     ],
     "extraResources": [
       {
@@ -57,7 +64,8 @@
           "prisma/**/*",
           "node_modules/**/*",
           "package.json",
-          "!node_modules/.cache/**/*"
+          "!node_modules/.cache/**/*",
+          "!node_modules/*/{test,__tests__,tests}/**/*"
         ]
       },
       {
@@ -66,8 +74,8 @@
       }
     ],
     "asarUnpack": [
-      "backend/**/*",
-      "node-portable/**/*"
+      "node_modules/electron-updater/**/*",
+      "backend/**/*"
     ],
     "publish": {
       "provider": "github",
@@ -83,7 +91,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "runAfterFinish": true
     },
     "mac": {
       "target": ["dmg"],

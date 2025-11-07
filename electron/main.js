@@ -2,10 +2,24 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
-const { autoUpdater } = require("electron-updater");
 const axios = require("axios");
 const log = require("electron-log");
 const fs = require("fs");
+
+// Auto-updater - cargar solo si está disponible
+let autoUpdater = null;
+const isInstalled = process.env.PORTABLE_EXECUTABLE_DIR === undefined;
+
+if (isInstalled) {
+  try {
+    autoUpdater = require("electron-updater").autoUpdater;
+    log.info("Auto-updater loaded successfully");
+  } catch (e) {
+    log.error("Failed to load electron-updater:", e.message);
+  }
+} else {
+  log.info("Running in portable mode, auto-updater disabled");
+}
 
 let mainWindow;
 let backendProcess;
@@ -98,6 +112,11 @@ function getBackendNodeModules() {
 // ============= AUTO-UPDATER =============
 
 function setupAutoUpdater() {
+  if (!autoUpdater) {
+    log.warn("Auto-updater not available, skipping setup");
+    return;
+  }
+  
   log.info("Configuring auto-updater...");
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -441,19 +460,28 @@ ipcMain.handle("get-user-data-path", () => app.getPath("userData"));
 ipcMain.handle("get-app-version", () => app.getVersion());
 
 ipcMain.on("check-for-updates", () => {
-  if (app.isPackaged) {
+  if (app.isPackaged && autoUpdater) {
     autoUpdater.checkForUpdates().catch(err => log.error(err));
+  } else {
+    log.warn("Auto-updater not available");
   }
 });
 
 ipcMain.on("download-update", () => {
-  if (app.isPackaged) {
+  if (app.isPackaged && autoUpdater) {
     autoUpdater.downloadUpdate().catch(err => log.error(err));
+  } else {
+    log.warn("Auto-updater not available");
   }
 });
 
 ipcMain.on("restart-app", () => {
-  autoUpdater.quitAndInstall(false, true);
+  if (autoUpdater) {
+    autoUpdater.quitAndInstall(false, true);
+  } else {
+    app.relaunch();
+    app.exit(0);
+  }
 });
 
 process.on("uncaughtException", (error) => {

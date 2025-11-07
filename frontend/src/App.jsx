@@ -23,6 +23,8 @@ import Invoices from "./pages/Accounting/Invoices";
 import AddInvoice from "./pages/Accounting/AddInvoice";
 import InvoiceDetails from "./pages/Accounting/InvoiceDetails";
 import Profile from "./pages/Profile/Profile";
+// Importar el componente de notificación de actualización
+import UpdateNotification from "./components/UpdateNotification";
 
 console.log('✅ App.jsx loaded')
 
@@ -156,6 +158,9 @@ function App() {
           }
         />
       </Routes>
+      
+      {/* Componente de notificación de actualización - fuera de las rutas */}
+      <UpdateNotification />
     </div>
   );
 }
