@@ -34,187 +34,84 @@ jobs:
         working-directory: backend
         run: npx prisma generate
 
-      - name: 🎨 Verify Tailwind setup
-        working-directory: frontend
-        run: |
-          echo "Checking Tailwind installation..."
-          npm list tailwindcss postcss autoprefixer
-          echo ""
-          echo "Checking config files..."
-          if (Test-Path "tailwind.config.js") { Write-Host "✅ tailwind.config.js found" } else { Write-Host "❌ tailwind.config.js NOT FOUND" }
-          if (Test-Path "postcss.config.js") { Write-Host "✅ postcss.config.js found" } else { Write-Host "❌ postcss.config.js NOT FOUND" }
-          if (Test-Path "vite.config.js") { Write-Host "✅ vite.config.js found" } else { Write-Host "❌ vite.config.js NOT FOUND" }
-        shell: pwsh
-
       - name: 🔨 Build frontend
         working-directory: frontend
-        run: |
-          echo "Building frontend..."
-          npm run build
-          echo ""
-          echo "Checking build output..."
-          dir dist
-          echo ""
-          dir dist\assets
-        shell: pwsh
+        run: npm run build
         env:
           NODE_ENV: production
 
-      - name: 🔧 Build backend
-        run: npm run build:backend
+      - name: 📥 Download Node.js portable (via prebuild script)
+        run: npm run prebuild
 
-      - name: 📥 Download Node.js portable
+      - name: 🔍 Verify Node.js portable download
         run: |
-          Write-Host "=== DOWNLOADING NODE.JS PORTABLE ===" -ForegroundColor Cyan
-          
-          $nodeVersion = "20.11.0"
-          $downloadUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-win-x64.zip"
-          $outputDir = "node-portable"
-          $zipFile = "$outputDir\node.zip"
-          $nodeExe = "$outputDir\node.exe"
-          
-          # Crear directorio
-          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-          
-          # Descargar
-          Write-Host "Downloading from: $downloadUrl" -ForegroundColor Yellow
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipFile
-          
-          Write-Host "✅ Download completed" -ForegroundColor Green
-          Write-Host "   Size: $([math]::Round((Get-Item $zipFile).Length / 1MB, 2)) MB"
-          
-          # Extraer
-          Write-Host "Extracting..." -ForegroundColor Yellow
-          Expand-Archive -Path $zipFile -DestinationPath $outputDir -Force
-          
-          # Mover node.exe
-          $extractedFolder = "$outputDir\node-v$nodeVersion-win-x64"
-          Copy-Item "$extractedFolder\node.exe" $nodeExe -Force
-          
-          # Limpiar
-          Remove-Item $extractedFolder -Recurse -Force
-          Remove-Item $zipFile -Force
-          
-          # Verificar
-          if (Test-Path $nodeExe) {
-            Write-Host "✅ Node.js portable ready!" -ForegroundColor Green
-            Write-Host "   Path: $nodeExe"
-            Write-Host "   Size: $([math]::Round((Get-Item $nodeExe).Length / 1MB, 2)) MB"
-          } else {
-            Write-Host "❌ ERROR: node.exe not found!" -ForegroundColor Red
-            exit 1
-          }
-        shell: pwsh
-
-      - name: 🔍 Verify backend files
-        working-directory: backend
-        run: |
-          Write-Host "=== BACKEND FILES ===" -ForegroundColor Cyan
-          if (Test-Path "src/app.js") {
-            Write-Host "✅ app.js found" -ForegroundColor Green
-          } else {
-            Write-Host "❌ ERROR: app.js NOT found" -ForegroundColor Red
-            exit 1
-          }
-          
-          Write-Host ""
-          Write-Host "=== BACKEND ROUTES ===" -ForegroundColor Cyan
-          $routes = Get-ChildItem "src/routes" -Filter "*.js" -ErrorAction SilentlyContinue
-          if ($routes) {
-            Write-Host "✅ Routes found:" -ForegroundColor Green
-            $routes | ForEach-Object { Write-Host "   - $($_.Name)" }
-          } else {
-            Write-Host "❌ ERROR: No routes found" -ForegroundColor Red
-            exit 1
-          }
-          
-          Write-Host ""
-          Write-Host "=== PRISMA CLIENT ===" -ForegroundColor Cyan
-          if (Test-Path "node_modules/.prisma/client") {
-            Write-Host "✅ Prisma Client generated" -ForegroundColor Green
-          } else {
-            Write-Host "❌ ERROR: Prisma Client NOT generated" -ForegroundColor Red
-            exit 1
-          }
-          
-          Write-Host ""
-          Write-Host "=== NODE MODULES ===" -ForegroundColor Cyan
-          $nodeModulesSize = (Get-ChildItem "node_modules" -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "✅ node_modules size: $([math]::Round($nodeModulesSize, 2)) MB" -ForegroundColor Green
-        shell: pwsh
-
-      - name: 🔍 Verify Node.js portable
-        run: |
-          Write-Host "=== NODE.JS PORTABLE ===" -ForegroundColor Cyan
+          Write-Host "=== VERIFYING NODE.JS PORTABLE ===" -ForegroundColor Cyan
           
           $nodeExe = "node-portable\node.exe"
           
           if (Test-Path $nodeExe) {
+            $size = (Get-Item $nodeExe).Length / 1MB
             Write-Host "✅ node.exe found!" -ForegroundColor Green
-            $nodeSize = (Get-Item $nodeExe).Length / 1MB
             Write-Host "   Path: $nodeExe"
-            Write-Host "   Size: $([math]::Round($nodeSize, 2)) MB"
+            Write-Host "   Size: $([math]::Round($size, 2)) MB"
             
-            # Verificar que sea ejecutable válido
-            $fileInfo = Get-Item $nodeExe
-            if ($fileInfo.Length -gt 20MB) {
-              Write-Host "   ✅ Size looks good (>20MB)" -ForegroundColor Green
+            if ($size -gt 20) {
+              Write-Host "   ✅ Size OK (>20MB)" -ForegroundColor Green
             } else {
-              Write-Host "   ⚠️ WARNING: File might be corrupted (too small)" -ForegroundColor Yellow
+              Write-Host "   ❌ ERROR: File too small, might be corrupted" -ForegroundColor Red
+              exit 1
             }
           } else {
             Write-Host "❌ ERROR: node.exe NOT FOUND!" -ForegroundColor Red
-            Write-Host "This will cause the app to fail on systems without Node.js installed" -ForegroundColor Red
+            Write-Host "Directory contents:" -ForegroundColor Yellow
+            if (Test-Path "node-portable") {
+              Get-ChildItem "node-portable" | ForEach-Object { Write-Host "   - $($_.Name)" }
+            } else {
+              Write-Host "   node-portable directory doesn't exist!" -ForegroundColor Red
+            }
             exit 1
           }
         shell: pwsh
 
-      - name: 🔍 Verify complete build
+      - name: 🔍 Verify backend structure
+        working-directory: backend
         run: |
-          Write-Host "=== FRONTEND BUILD ===" -ForegroundColor Cyan
-          if (Test-Path "frontend\dist\index.html") {
-            Write-Host "✅ index.html exists" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "First 20 lines of index.html:" -ForegroundColor Yellow
-            Get-Content "frontend\dist\index.html" -Head 20
+          Write-Host "=== BACKEND STRUCTURE ===" -ForegroundColor Cyan
+          
+          # Verificar app.js
+          if (Test-Path "src/app.js") {
+            Write-Host "✅ app.js" -ForegroundColor Green
           } else {
-            Write-Host "❌ index.html NOT FOUND" -ForegroundColor Red
+            Write-Host "❌ app.js NOT FOUND" -ForegroundColor Red
             exit 1
           }
           
-          Write-Host ""
-          Write-Host "=== CSS FILES ===" -ForegroundColor Cyan
-          $cssFiles = Get-ChildItem "frontend\dist\assets\*.css" -ErrorAction SilentlyContinue
-          if ($cssFiles) {
-            Write-Host "✅ CSS files found:" -ForegroundColor Green
-            $cssFiles | ForEach-Object { Write-Host "   - $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" }
-            Write-Host ""
-            Write-Host "CSS content preview (first 30 lines):" -ForegroundColor Yellow
-            Get-Content $cssFiles[0].FullName -Head 30
+          # Verificar rutas
+          $routes = Get-ChildItem "src/routes" -Filter "*.js" -ErrorAction SilentlyContinue
+          if ($routes) {
+            Write-Host "✅ Routes: $($routes.Count) files" -ForegroundColor Green
           } else {
-            Write-Host "❌ NO CSS FILES FOUND" -ForegroundColor Red
+            Write-Host "❌ No routes found" -ForegroundColor Red
             exit 1
           }
           
-          Write-Host ""
-          Write-Host "=== JAVASCRIPT FILES ===" -ForegroundColor Cyan
-          $jsFiles = Get-ChildItem "frontend\dist\assets\*.js" -ErrorAction SilentlyContinue
-          if ($jsFiles) {
-            Write-Host "✅ JS files found:" -ForegroundColor Green
-            $jsFiles | ForEach-Object { Write-Host "   - $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" }
+          # Verificar Prisma Client
+          if (Test-Path "node_modules/.prisma/client") {
+            Write-Host "✅ Prisma Client generated" -ForegroundColor Green
           } else {
-            Write-Host "❌ NO JS FILES FOUND" -ForegroundColor Red
+            Write-Host "❌ Prisma Client NOT generated" -ForegroundColor Red
             exit 1
           }
           
-          Write-Host ""
-          Write-Host "=== DATABASE ===" -ForegroundColor Cyan
-          if (Test-Path "database\calzado.db") {
-            Write-Host "✅ Database file exists" -ForegroundColor Green
-            $dbSize = (Get-Item "database\calzado.db").Length / 1KB
-            Write-Host "   Size: $([math]::Round($dbSize, 2)) KB"
-          } else {
-            Write-Host "⚠️ WARNING: Database file NOT FOUND (will be created on first run)" -ForegroundColor Yellow
+          # Verificar dependencias críticas
+          $criticalDeps = @("express", "cors", "@prisma/client", "bcryptjs", "jsonwebtoken")
+          foreach ($dep in $criticalDeps) {
+            if (Test-Path "node_modules/$dep") {
+              Write-Host "✅ $dep" -ForegroundColor Green
+            } else {
+              Write-Host "❌ $dep MISSING" -ForegroundColor Red
+              exit 1
+            }
           }
         shell: pwsh
 
@@ -223,50 +120,40 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🔍 Verify installer
+      - name: 🔍 Verify build output
         run: |
-          Write-Host "=== ELECTRON BUILD OUTPUT ===" -ForegroundColor Cyan
+          Write-Host "=== BUILD OUTPUT ===" -ForegroundColor Cyan
           
-          $exeFiles = Get-ChildItem "dist-electron" -Filter "*.exe" -ErrorAction SilentlyContinue
-          if ($exeFiles) {
-            Write-Host "✅ Installers found:" -ForegroundColor Green
-            $exeFiles | ForEach-Object { 
-              $sizeMB = [math]::Round($_.Length / 1MB, 2)
-              Write-Host "   - $($_.Name) ($sizeMB MB)"
-            }
+          # Verificar instalador
+          $installer = Get-ChildItem "dist-electron" -Filter "*Setup*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($installer) {
+            $sizeMB = [math]::Round($installer.Length / 1MB, 2)
+            Write-Host "✅ Installer: $($installer.Name) ($sizeMB MB)" -ForegroundColor Green
           } else {
-            Write-Host "❌ ERROR: No .exe files found in dist-electron" -ForegroundColor Red
-            Write-Host "Contents of dist-electron:" -ForegroundColor Yellow
-            Get-ChildItem "dist-electron" -Recurse | Select-Object FullName
+            Write-Host "❌ Installer NOT found" -ForegroundColor Red
             exit 1
           }
           
-          Write-Host ""
-          Write-Host "=== UPDATE FILES ===" -ForegroundColor Cyan
-          $ymlFiles = Get-ChildItem "dist-electron" -Filter "*.yml" -ErrorAction SilentlyContinue
-          if ($ymlFiles) {
-            Write-Host "✅ Update files found:" -ForegroundColor Green
-            $ymlFiles | ForEach-Object { Write-Host "   - $($_.Name)" }
+          # Verificar Node.js en resources
+          $nodeInResources = "dist-electron\win-unpacked\resources\node\node.exe"
+          if (Test-Path $nodeInResources) {
+            $nodeSize = [math]::Round((Get-Item $nodeInResources).Length / 1MB, 2)
+            Write-Host "✅ Node.js included in build: $nodeSize MB" -ForegroundColor Green
           } else {
-            Write-Host "⚠️ WARNING: No .yml update files found" -ForegroundColor Yellow
+            Write-Host "❌ Node.js NOT included in build!" -ForegroundColor Red
+            Write-Host "Resources directory structure:" -ForegroundColor Yellow
+            if (Test-Path "dist-electron\win-unpacked\resources") {
+              Get-ChildItem "dist-electron\win-unpacked\resources" -Recurse | Select-Object FullName | ForEach-Object { Write-Host "   $($_.FullName)" }
+            }
+            exit 1
           }
           
-          Write-Host ""
-          Write-Host "=== VERIFY NODE.JS IN BUILD ===" -ForegroundColor Cyan
-          $nodeInBuild = "dist-electron\win-unpacked\resources\node\node.exe"
-          if (Test-Path $nodeInBuild) {
-            Write-Host "✅ node.exe included in installer!" -ForegroundColor Green
-            $nodeSize = [math]::Round((Get-Item $nodeInBuild).Length / 1MB, 2)
-            Write-Host "   Path: $nodeInBuild"
-            Write-Host "   Size: $nodeSize MB"
+          # Verificar backend en resources
+          $backendInResources = "dist-electron\win-unpacked\resources\backend\src\app.js"
+          if (Test-Path $backendInResources) {
+            Write-Host "✅ Backend included in build" -ForegroundColor Green
           } else {
-            Write-Host "❌ ERROR: node.exe NOT included in installer!" -ForegroundColor Red
-            Write-Host "The app will fail on systems without Node.js" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Contents of resources folder:" -ForegroundColor Yellow
-            if (Test-Path "dist-electron\win-unpacked\resources") {
-              Get-ChildItem "dist-electron\win-unpacked\resources" | ForEach-Object { Write-Host "   - $($_.Name)" }
-            }
+            Write-Host "❌ Backend NOT included!" -ForegroundColor Red
             exit 1
           }
         shell: pwsh
@@ -295,34 +182,34 @@ jobs:
             1. Descarga `Sistema-Calzado-Setup-${{ steps.version.outputs.VERSION }}.exe`
             2. Ejecuta el instalador
             3. Sigue las instrucciones en pantalla
-            4. La aplicación se iniciará automáticamente
             
-            ### 🔄 Actualización automática
-            Si ya tienes la aplicación instalada:
-            - Se actualizará automáticamente al iniciar
-            - Recibirás una notificación cuando esté disponible
-            - Puedes instalar sobre la versión anterior sin desinstalar
+            ### ⚠️ IMPORTANTE
+            - **Node.js incluido**: No necesitas instalar Node.js por separado
+            - **Primera instalación**: La aplicación puede tardar unos segundos en iniciar
+            - **Antivirus**: Algunos antivirus pueden bloquear la primera ejecución
             
             ### ✨ Características
-            - ✅ Backend integrado (no requiere instalación separada)
+            - ✅ Backend integrado (Node.js portable incluido)
             - ✅ Base de datos SQLite incluida
             - ✅ Interfaz moderna con React + Tailwind
             - ✅ Sistema de autenticación seguro
             - ✅ Gestión de inventario, ventas y proveedores
+            - ✅ Actualizaciones automáticas
             
             ### 📝 Cambios en esta versión
             Ver notas de lanzamiento automáticas abajo.
             
             ---
             
-            **⚠️ Requisitos:**
+            **💻 Requisitos:**
             - Windows 10/11 (64-bit)
             - 4GB RAM mínimo
             - 500MB espacio en disco
             
             **🐛 ¿Problemas?**
+            - Si el backend no inicia: Ejecuta como administrador
+            - Si el antivirus lo bloquea: Agrega excepción
             - Reporta bugs en [Issues](https://github.com/Juand2602/Maca-app-electron/issues)
-            - Consulta la documentación en el [Wiki](https://github.com/Juand2602/Maca-app-electron/wiki)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -332,7 +219,4 @@ jobs:
           Write-Host "================================================" -ForegroundColor Green
           Write-Host "✅ Release created successfully!" -ForegroundColor Green
           Write-Host "================================================" -ForegroundColor Green
-          Write-Host ""
-          Write-Host "📦 Instalador disponible en GitHub Releases" -ForegroundColor Cyan
-          Write-Host ""
         shell: pwsh

@@ -1,6 +1,6 @@
 {
   "name": "sistema-calzado",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Sistema de gestión para calzado Maca",
   "main": "electron/main.js",
   "scripts": {
@@ -16,11 +16,7 @@
     "electron:build": "npm run build && electron-builder",
     "release": "node scripts/release.js"
   },
-  "keywords": [
-    "electron",
-    "calzado",
-    "gestión"
-  ],
+  "keywords": ["electron", "calzado", "gestión"],
   "author": "Juan Diego Sepulveda Herrera",
   "license": "ISC",
   "dependencies": {
@@ -44,14 +40,24 @@
     },
     "files": [
       "electron/**/*",
-      "frontend/dist/**/*"
+      "frontend/dist/**/*",
+      "!node_modules/**/*"
     ],
     "extraResources": [
+      {
+        "from": "node-portable",
+        "to": "node",
+        "filter": ["**/*"]
+      },
       {
         "from": "backend",
         "to": "backend",
         "filter": [
-          "**/*"
+          "src/**/*",
+          "prisma/**/*",
+          "node_modules/**/*",
+          "package.json",
+          "!node_modules/.cache/**/*"
         ]
       },
       {
@@ -60,7 +66,8 @@
       }
     ],
     "asarUnpack": [
-      "backend/**/*"
+      "backend/**/*",
+      "node-portable/**/*"
     ],
     "publish": {
       "provider": "github",
@@ -68,28 +75,23 @@
       "repo": "Maca-app-electron"
     },
     "win": {
-      "target": [
-        "nsis"
-      ],
+      "target": ["nsis"],
       "icon": "resources/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
-      "target": [
-        "dmg"
-      ],
+      "target": ["dmg"],
       "icon": "resources/icon.icns",
       "category": "public.app-category.business"
     },
     "linux": {
-      "target": [
-        "AppImage"
-      ],
+      "target": ["AppImage"],
       "icon": "resources/icon.png",
       "category": "Office"
     }

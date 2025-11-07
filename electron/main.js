@@ -22,29 +22,22 @@ function getNodeExecutable() {
   const isDev = !app.isPackaged;
   
   if (isDev) {
-    // En desarrollo, usar Node.js del sistema
     return process.platform === 'win32' ? 'node' : 'node';
-  } else {
-    // En producción, usar Node.js portable incluido
-    const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
-    
-    console.log('Looking for Node.js at:', nodePath);
-    
-    if (fs.existsSync(nodePath)) {
-      console.log('✅ Node.js portable found');
-      return nodePath;
-    } else {
-      console.error('❌ Node.js portable NOT found at:', nodePath);
-      console.log('📂 Contents of resources:');
-      try {
-        const files = fs.readdirSync(process.resourcesPath);
-        console.log(files);
-      } catch (e) {
-        console.error('Cannot read resources:', e);
-      }
-      throw new Error('Node.js portable no encontrado. Por favor reinstala la aplicación.');
-    }
   }
+  
+  // En producción: buscar Node.js portable
+  const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
+  
+  log.info('Looking for Node.js at:', nodePath);
+  
+  if (fs.existsSync(nodePath)) {
+    log.info('✅ Node.js portable found');
+    return nodePath;
+  }
+  
+  log.error('❌ Node.js portable NOT found');
+  log.info('Trying system Node.js as fallback...');
+  return 'node'; // Fallback al Node.js del sistema
 }
 
 function getBackendPath() {
@@ -52,15 +45,19 @@ function getBackendPath() {
   
   if (isDev) {
     return path.join(__dirname, "../backend/src/app.js");
-  } else {
-    // En producción, buscar en resources.asar.unpacked primero
-    const unpackedPath = path.join(process.resourcesPath, "app.asar.unpacked", "backend", "src", "app.js");
-    if (fs.existsSync(unpackedPath)) {
-      return unpackedPath;
-    }
-    // Sino, buscar en resources directamente
-    return path.join(process.resourcesPath, "backend", "src", "app.js");
   }
+  
+  // En producción: siempre en resources/backend
+  const backendPath = path.join(process.resourcesPath, "backend", "src", "app.js");
+  
+  log.info('Backend path:', backendPath);
+  
+  if (!fs.existsSync(backendPath)) {
+    log.error('❌ Backend not found at:', backendPath);
+    throw new Error(`Backend no encontrado: ${backendPath}`);
+  }
+  
+  return backendPath;
 }
 
 function getDatabasePath() {
@@ -68,9 +65,34 @@ function getDatabasePath() {
   
   if (isDev) {
     return path.join(__dirname, "../database/calzado.db");
-  } else {
-    return path.join(process.resourcesPath, "database", "calzado.db");
   }
+  
+  // En producción: usar userData para que sea escribible
+  const userDataPath = app.getPath('userData');
+  const dbPath = path.join(userDataPath, 'calzado.db');
+  
+  // Copiar DB inicial si no existe
+  if (!fs.existsSync(dbPath)) {
+    const templateDb = path.join(process.resourcesPath, "database", "calzado.db");
+    if (fs.existsSync(templateDb)) {
+      fs.copyFileSync(templateDb, dbPath);
+      log.info('✅ Database copied to userData');
+    } else {
+      log.warn('⚠️ Template database not found, will be created on first run');
+    }
+  }
+  
+  return dbPath;
+}
+
+function getBackendNodeModules() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    return path.join(__dirname, "../backend/node_modules");
+  }
+  
+  return path.join(process.resourcesPath, "backend", "node_modules");
 }
 
 // ============= AUTO-UPDATER =============
@@ -108,82 +130,107 @@ function setupAutoUpdater() {
 
 async function startBackend() {
   return new Promise((resolve, reject) => {
-    console.log("🔧 Starting backend server...");
+    log.info("🔧 Starting backend server...");
 
     const isDev = !app.isPackaged;
-    const backendScript = getBackendPath();
-    const databasePath = getDatabasePath();
+    
+    try {
+      const nodeExe = getNodeExecutable();
+      const backendScript = getBackendPath();
+      const databasePath = getDatabasePath();
+      const nodeModulesPath = getBackendNodeModules();
 
-    console.log("Backend script:", backendScript);
-    console.log("Database path:", databasePath);
-    console.log("Is packaged:", app.isPackaged);
+      log.info("Node executable:", nodeExe);
+      log.info("Backend script:", backendScript);
+      log.info("Database path:", databasePath);
+      log.info("Node modules:", nodeModulesPath);
+      log.info("Is packaged:", app.isPackaged);
 
-    if (!fs.existsSync(backendScript)) {
-      const error = `Backend script not found: ${backendScript}`;
-      console.error("❌", error);
-      reject(new Error(error));
-      return;
-    }
+      const backendDir = path.dirname(backendScript);
+      
+      // Configurar variables de entorno
+      const env = {
+        ...process.env,
+        PORT: BACKEND_PORT.toString(),
+        NODE_ENV: isDev ? "development" : "production",
+        DATABASE_URL: `file:${databasePath}`,
+        NODE_PATH: nodeModulesPath,
+        // Importante: agregar node_modules/.bin al PATH
+        PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+      };
 
-    const backendDir = path.dirname(backendScript);
-    const env = {
-      ...process.env,
-      PORT: BACKEND_PORT,
-      NODE_ENV: isDev ? "development" : "production",
-      DATABASE_URL: `file:${databasePath}`,
-    };
+      log.info("Starting backend with env:", {
+        PORT: env.PORT,
+        NODE_ENV: env.NODE_ENV,
+        DATABASE_URL: env.DATABASE_URL
+      });
 
-    // SIMPLE: Siempre usar 'node' - el sistema lo encontrará
-    const nodeCmd = process.platform === 'win32' ? 'node' : 'node';
+      // Spawn del proceso
+      const spawnOptions = {
+        cwd: backendDir,
+        env: env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true
+      };
 
-    console.log("Starting with command:", nodeCmd);
-    console.log("Working directory:", backendDir);
-
-    backendProcess = spawn(nodeCmd, [backendScript], {
-      cwd: backendDir,
-      env: env,
-      stdio: ["ignore", "pipe", "pipe"],
-      shell: true  // IMPORTANTE: usar shell para encontrar node en PATH
-    });
-
-    let backendStarted = false;
-
-    backendProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      console.log("[Backend]", output);
-
-      if ((output.includes("Server") || 
-           output.includes("listening") || 
-           output.includes("Sistema Calzado API")) && 
-          !backendStarted) {
-        backendStarted = true;
-        console.log("✅ Backend started successfully");
-        setTimeout(() => resolve(), 2000);
+      // En producción, no usar shell para evitar problemas con rutas
+      if (!isDev) {
+        spawnOptions.shell = false;
       }
-    });
 
-    backendProcess.stderr.on("data", (data) => {
-      console.error("[Backend Error]", data.toString());
-    });
+      backendProcess = spawn(nodeExe, [backendScript], spawnOptions);
 
-    backendProcess.on("error", (error) => {
-      console.error("❌ Failed to start backend:", error);
+      let backendStarted = false;
+      let errorOutput = '';
+
+      backendProcess.stdout.on("data", (data) => {
+        const output = data.toString();
+        log.info("[Backend]", output);
+
+        if ((output.includes("Server") || 
+             output.includes("listening") || 
+             output.includes("Sistema Calzado API")) && 
+            !backendStarted) {
+          backendStarted = true;
+          log.info("✅ Backend started successfully");
+          setTimeout(() => resolve(), 2000);
+        }
+      });
+
+      backendProcess.stderr.on("data", (data) => {
+        const error = data.toString();
+        errorOutput += error;
+        log.error("[Backend Error]", error);
+      });
+
+      backendProcess.on("error", (error) => {
+        log.error("❌ Failed to start backend:", error);
+        reject(new Error(`No se pudo iniciar el backend: ${error.message}`));
+      });
+
+      backendProcess.on("exit", (code, signal) => {
+        log.info(`Backend process exited with code ${code}, signal ${signal}`);
+        
+        if (code !== 0 && code !== null && !backendStarted) {
+          const errorMsg = `Backend cerró con código ${code}.\n\nError:\n${errorOutput}`;
+          log.error(errorMsg);
+          reject(new Error(errorMsg));
+        }
+      });
+
+      // Timeout de seguridad
+      setTimeout(() => {
+        if (!backendStarted) {
+          log.warn("⚠️ Backend timeout - verificando conectividad...");
+          // No rechazamos aún, el waitForBackend verificará
+          resolve();
+        }
+      }, 15000);
+
+    } catch (error) {
+      log.error("❌ Exception starting backend:", error);
       reject(error);
-    });
-
-    backendProcess.on("exit", (code) => {
-      console.log(`Backend process exited with code ${code}`);
-      if (code !== 0 && code !== null && !backendStarted) {
-        reject(new Error(`Backend exited with code ${code}`));
-      }
-    });
-
-    setTimeout(() => {
-      if (!backendStarted) {
-        console.log("⚠️ Backend timeout - assuming started");
-        resolve();
-      }
-    }, 15000);
+    }
   });
 }
 
@@ -191,31 +238,42 @@ async function waitForBackend() {
   const maxAttempts = 30;
   const delay = 1000;
 
-  console.log("🔍 Waiting for backend...");
+  log.info("🔍 Waiting for backend...");
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { timeout: 3000 });
+      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { 
+        timeout: 3000 
+      });
+      
       if (response.data.status === "ok") {
-        console.log("✅ Backend is ready!");
+        log.info("✅ Backend is ready!");
+        log.info("Backend info:", response.data);
         return true;
       }
     } catch (error) {
+      log.info(`Attempt ${i + 1}/${maxAttempts} - Backend not ready yet`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  throw new Error("Backend failed to start");
+  throw new Error("Backend no responde después de 30 intentos");
 }
 
 function stopBackend() {
   if (backendProcess && !backendProcess.killed) {
-    console.log("🛑 Stopping backend...");
+    log.info("🛑 Stopping backend...");
+    
     if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
+      try {
+        spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
+      } catch (e) {
+        log.error("Error killing backend:", e);
+      }
     } else {
-      backendProcess.kill();
+      backendProcess.kill('SIGTERM');
     }
+    
     backendProcess = null;
   }
 }
@@ -300,7 +358,7 @@ function createMainWindow() {
     ? `http://localhost:${FRONTEND_PORT}`
     : `file://${path.join(__dirname, "../frontend/dist/index.html")}`;
 
-  console.log("📂 Loading:", startUrl);
+  log.info("📂 Loading:", startUrl);
   mainWindow.loadURL(startUrl);
 
   if (isDev) mainWindow.webContents.openDevTools();
@@ -317,7 +375,7 @@ async function initializeApp() {
   
   try {
     splash = createSplashWindow();
-    console.log("🚀 Initializing...");
+    log.info("🚀 Initializing...");
 
     await startBackend();
     await waitForBackend();
@@ -329,18 +387,27 @@ async function initializeApp() {
         if (splash && !splash.isDestroyed()) splash.close();
         mainWindow.show();
         mainWindow.maximize();
-        console.log("🎉 Ready!");
+        log.info("🎉 Ready!");
       }, 1000);
     });
 
     if (app.isPackaged) setupAutoUpdater();
+    
   } catch (error) {
-    console.error("❌ Init failed:", error);
+    log.error("❌ Init failed:", error);
+    
     if (splash && !splash.isDestroyed()) splash.close();
+    
+    const errorMessage = error.message || 'Error desconocido';
     
     dialog.showErrorBox(
       "Error al iniciar",
-      `No se pudo iniciar:\n\n${error.message}\n\nAsegúrate de que Node.js esté instalado en tu sistema.`
+      `No se pudo iniciar la aplicación:\n\n${errorMessage}\n\n` +
+      `Soluciones posibles:\n` +
+      `• Verifica que tienes Node.js instalado (https://nodejs.org)\n` +
+      `• Ejecuta como administrador\n` +
+      `• Desactiva el antivirus temporalmente\n` +
+      `• Reinstala la aplicación`
     );
     
     app.quit();
@@ -390,11 +457,9 @@ ipcMain.on("restart-app", () => {
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("Uncaught exception:", error);
   log.error("Uncaught exception:", error);
 });
 
 process.on("unhandledRejection", (error) => {
-  console.error("Unhandled rejection:", error);
   log.error("Unhandled rejection:", error);
 });

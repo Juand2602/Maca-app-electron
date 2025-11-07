@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:../../database/calzado.db"
+  url      = env("DATABASE_URL")
 }
 
 // ============= USUARIOS Y AUTENTICACIÓN =============
