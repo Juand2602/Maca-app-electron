@@ -64,7 +64,47 @@ jobs:
         run: npm run build:backend
 
       - name: 📥 Download Node.js portable
-        run: node scripts/download-node.js
+        run: |
+          Write-Host "=== DOWNLOADING NODE.JS PORTABLE ===" -ForegroundColor Cyan
+          
+          $nodeVersion = "20.11.0"
+          $downloadUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-win-x64.zip"
+          $outputDir = "node-portable"
+          $zipFile = "$outputDir\node.zip"
+          $nodeExe = "$outputDir\node.exe"
+          
+          # Crear directorio
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          
+          # Descargar
+          Write-Host "Downloading from: $downloadUrl" -ForegroundColor Yellow
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipFile
+          
+          Write-Host "✅ Download completed" -ForegroundColor Green
+          Write-Host "   Size: $([math]::Round((Get-Item $zipFile).Length / 1MB, 2)) MB"
+          
+          # Extraer
+          Write-Host "Extracting..." -ForegroundColor Yellow
+          Expand-Archive -Path $zipFile -DestinationPath $outputDir -Force
+          
+          # Mover node.exe
+          $extractedFolder = "$outputDir\node-v$nodeVersion-win-x64"
+          Copy-Item "$extractedFolder\node.exe" $nodeExe -Force
+          
+          # Limpiar
+          Remove-Item $extractedFolder -Recurse -Force
+          Remove-Item $zipFile -Force
+          
+          # Verificar
+          if (Test-Path $nodeExe) {
+            Write-Host "✅ Node.js portable ready!" -ForegroundColor Green
+            Write-Host "   Path: $nodeExe"
+            Write-Host "   Size: $([math]::Round((Get-Item $nodeExe).Length / 1MB, 2)) MB"
+          } else {
+            Write-Host "❌ ERROR: node.exe not found!" -ForegroundColor Red
+            exit 1
+          }
+        shell: pwsh
 
       - name: 🔍 Verify backend files
         working-directory: backend
@@ -101,6 +141,32 @@ jobs:
           Write-Host "=== NODE MODULES ===" -ForegroundColor Cyan
           $nodeModulesSize = (Get-ChildItem "node_modules" -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB
           Write-Host "✅ node_modules size: $([math]::Round($nodeModulesSize, 2)) MB" -ForegroundColor Green
+        shell: pwsh
+
+      - name: 🔍 Verify Node.js portable
+        run: |
+          Write-Host "=== NODE.JS PORTABLE ===" -ForegroundColor Cyan
+          
+          $nodeExe = "node-portable\node.exe"
+          
+          if (Test-Path $nodeExe) {
+            Write-Host "✅ node.exe found!" -ForegroundColor Green
+            $nodeSize = (Get-Item $nodeExe).Length / 1MB
+            Write-Host "   Path: $nodeExe"
+            Write-Host "   Size: $([math]::Round($nodeSize, 2)) MB"
+            
+            # Verificar que sea ejecutable válido
+            $fileInfo = Get-Item $nodeExe
+            if ($fileInfo.Length -gt 20MB) {
+              Write-Host "   ✅ Size looks good (>20MB)" -ForegroundColor Green
+            } else {
+              Write-Host "   ⚠️ WARNING: File might be corrupted (too small)" -ForegroundColor Yellow
+            }
+          } else {
+            Write-Host "❌ ERROR: node.exe NOT FOUND!" -ForegroundColor Red
+            Write-Host "This will cause the app to fail on systems without Node.js installed" -ForegroundColor Red
+            exit 1
+          }
         shell: pwsh
 
       - name: 🔍 Verify complete build
@@ -183,6 +249,25 @@ jobs:
             $ymlFiles | ForEach-Object { Write-Host "   - $($_.Name)" }
           } else {
             Write-Host "⚠️ WARNING: No .yml update files found" -ForegroundColor Yellow
+          }
+          
+          Write-Host ""
+          Write-Host "=== VERIFY NODE.JS IN BUILD ===" -ForegroundColor Cyan
+          $nodeInBuild = "dist-electron\win-unpacked\resources\node\node.exe"
+          if (Test-Path $nodeInBuild) {
+            Write-Host "✅ node.exe included in installer!" -ForegroundColor Green
+            $nodeSize = [math]::Round((Get-Item $nodeInBuild).Length / 1MB, 2)
+            Write-Host "   Path: $nodeInBuild"
+            Write-Host "   Size: $nodeSize MB"
+          } else {
+            Write-Host "❌ ERROR: node.exe NOT included in installer!" -ForegroundColor Red
+            Write-Host "The app will fail on systems without Node.js" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "Contents of resources folder:" -ForegroundColor Yellow
+            if (Test-Path "dist-electron\win-unpacked\resources") {
+              Get-ChildItem "dist-electron\win-unpacked\resources" | ForEach-Object { Write-Host "   - $($_.Name)" }
+            }
+            exit 1
           }
         shell: pwsh
 
