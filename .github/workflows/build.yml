@@ -40,35 +40,77 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: 📥 Download Node.js portable (via prebuild script)
-        run: npm run prebuild
-
-      - name: 🔍 Verify Node.js portable download
+      - name: 📥 Download Node.js portable
         run: |
-          Write-Host "=== VERIFYING NODE.JS PORTABLE ===" -ForegroundColor Cyan
+          Write-Host "=== DOWNLOADING NODE.JS PORTABLE ===" -ForegroundColor Cyan
           
-          $nodeExe = "node-portable\node.exe"
+          $nodeVersion = "20.11.0"
+          $downloadUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-win-x64.zip"
+          $outputDir = "node-portable"
+          $zipFile = "$outputDir\node.zip"
+          $nodeExe = "$outputDir\node.exe"
           
+          # Limpiar y crear directorio
+          if (Test-Path $outputDir) {
+            Remove-Item $outputDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          
+          Write-Host "Downloading from: $downloadUrl" -ForegroundColor Yellow
+          
+          # Descargar con progress
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipFile -UseBasicParsing
+          
+          if (!(Test-Path $zipFile)) {
+            Write-Host "❌ Download failed!" -ForegroundColor Red
+            exit 1
+          }
+          
+          $zipSize = [math]::Round((Get-Item $zipFile).Length / 1MB, 2)
+          Write-Host "✅ Download completed: $zipSize MB" -ForegroundColor Green
+          
+          # Extraer ZIP
+          Write-Host "Extracting..." -ForegroundColor Yellow
+          Expand-Archive -Path $zipFile -DestinationPath $outputDir -Force
+          
+          # Mover node.exe
+          $extractedFolder = "$outputDir\node-v$nodeVersion-win-x64"
+          
+          if (!(Test-Path $extractedFolder)) {
+            Write-Host "❌ Extracted folder not found!" -ForegroundColor Red
+            Write-Host "Contents:" -ForegroundColor Yellow
+            Get-ChildItem $outputDir | ForEach-Object { Write-Host "   - $($_.Name)" }
+            exit 1
+          }
+          
+          Copy-Item "$extractedFolder\node.exe" $nodeExe -Force
+          
+          # Limpiar
+          Remove-Item $extractedFolder -Recurse -Force
+          Remove-Item $zipFile -Force
+          
+          # Verificar
           if (Test-Path $nodeExe) {
-            $size = (Get-Item $nodeExe).Length / 1MB
-            Write-Host "✅ node.exe found!" -ForegroundColor Green
+            $nodeSize = [math]::Round((Get-Item $nodeExe).Length / 1MB, 2)
+            Write-Host "✅ Node.js portable ready!" -ForegroundColor Green
             Write-Host "   Path: $nodeExe"
-            Write-Host "   Size: $([math]::Round($size, 2)) MB"
+            Write-Host "   Size: $nodeSize MB"
             
-            if ($size -gt 20) {
-              Write-Host "   ✅ Size OK (>20MB)" -ForegroundColor Green
-            } else {
-              Write-Host "   ❌ ERROR: File too small, might be corrupted" -ForegroundColor Red
+            # Verificar que sea ejecutable
+            try {
+              $version = & $nodeExe --version
+              Write-Host "   Version: $version" -ForegroundColor Green
+            } catch {
+              Write-Host "   ⚠️ Could not verify executable" -ForegroundColor Yellow
+            }
+            
+            if ($nodeSize -lt 20) {
+              Write-Host "❌ ERROR: File too small!" -ForegroundColor Red
               exit 1
             }
           } else {
-            Write-Host "❌ ERROR: node.exe NOT FOUND!" -ForegroundColor Red
-            Write-Host "Directory contents:" -ForegroundColor Yellow
-            if (Test-Path "node-portable") {
-              Get-ChildItem "node-portable" | ForEach-Object { Write-Host "   - $($_.Name)" }
-            } else {
-              Write-Host "   node-portable directory doesn't exist!" -ForegroundColor Red
-            }
+            Write-Host "❌ ERROR: node.exe not found after extraction!" -ForegroundColor Red
             exit 1
           }
         shell: pwsh
