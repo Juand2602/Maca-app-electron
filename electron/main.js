@@ -1,4 +1,74 @@
-// electron/main.js
+async function initializeDatabase() {
+  const isDev = !app.isPackaged;
+  if (isDev) return; // En desarrollo no es necesario
+  
+  log.info("🗄️ Initializing database...");
+  
+  const databasePath = getDatabasePath();
+  const backendDir = path.join(process.resourcesPath, "backend");
+  const nodeModulesPath = getBackendNodeModules();
+  const schemaPath = path.join(process.resourcesPath, "backend", "prisma", "schema.prisma");
+  
+  // Verificar si el schema existe
+  if (!fs.existsSync(schemaPath)) {
+    log.error("❌ Prisma schema not found at:", schemaPath);
+    return;
+  }
+  
+  log.info("Found Prisma schema at:", schemaPath);
+  
+  const env = {
+    ...process.env,
+    DATABASE_URL: `file:${databasePath}`,
+    NODE_PATH: nodeModulesPath,
+    PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+  };
+  
+  try {
+    const { execSync } = require('child_process');
+    const nodeExe = getNodeExecutable();
+    const prismaBin = path.join(nodeModulesPath, '.bin', 'prisma');
+    
+    // Verificar que Prisma CLI existe
+    if (!fs.existsSync(prismaBin) && !fs.existsSync(prismaBin + '.cmd')) {
+      log.error("❌ Prisma CLI not found in node_modules");
+      return;
+    }
+    
+    log.info("Applying database migrations...");
+    
+    // Ejecutar migrate deploy (aplica migraciones)
+    const command = process.platform === 'win32' 
+      ? `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`
+      : `"${prismaBin}" migrate deploy --schema="${schemaPath}"`;
+    
+    execSync(command, {
+      cwd: backendDir,
+      env: env,
+      stdio: 'pipe',
+      encoding: 'utf8'
+    });
+    
+    log.info("✅ Database migrations applied successfully");
+    
+    // Opcional: Ejecutar seed si existe
+    const seedPath = path.join(backendDir, 'prisma', 'seed.js');
+    if (fs.existsSync(seedPath)) {
+      log.info("Running database seed...");
+      execSync(`"${nodeExe}" "${seedPath}"`, {
+        cwd: backendDir,
+        env: env,
+        stdio: 'pipe'
+      });
+      log.info("✅ Database seeded");
+    }
+    
+  } catch (error) {
+    log.error("❌ Database initialization failed:", error.message);
+    log.error("This is not critical - the app will continue to start");
+    // No detenemos la app, solo logueamos el error
+  }
+}// electron/main.js
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -145,17 +215,57 @@ function getDatabasePath() {
     return path.join(__dirname, "../database/calzado.db");
   }
   
+  // En producción: usar userData (tiene permisos de escritura)
   const userDataPath = app.getPath('userData');
-  const dbPath = path.join(userDataPath, 'calzado.db');
+  const dbDir = path.join(userDataPath, 'database');
+  const dbPath = path.join(dbDir, 'calzado.db');
   
+  log.info('Database configuration:');
+  log.info('  User data path:', userDataPath);
+  log.info('  Database directory:', dbDir);
+  log.info('  Database file:', dbPath);
+  
+  // Crear directorio si no existe
+  if (!fs.existsSync(dbDir)) {
+    log.info('Creating database directory...');
+    fs.mkdirSync(dbDir, { recursive: true });
+    log.info('✅ Database directory created');
+  }
+  
+  // Copiar DB template si no existe
   if (!fs.existsSync(dbPath)) {
+    log.info('Database file does not exist, checking for template...');
+    
     const templateDb = path.join(process.resourcesPath, "database", "calzado.db");
+    log.info('Template path:', templateDb);
+    
     if (fs.existsSync(templateDb)) {
-      fs.copyFileSync(templateDb, dbPath);
-      log.info('✅ Database copied to userData');
+      try {
+        fs.copyFileSync(templateDb, dbPath);
+        log.info('✅ Database copied from template');
+      } catch (error) {
+        log.error('❌ Failed to copy database:', error);
+        // Crear DB vacía si falla la copia
+        fs.writeFileSync(dbPath, '');
+        log.warn('⚠️ Created empty database file');
+      }
     } else {
-      log.warn('⚠️ Template database not found');
+      log.warn('⚠️ Template database not found, creating empty file');
+      // Crear archivo vacío - Prisma lo inicializará
+      fs.writeFileSync(dbPath, '');
+      log.info('✅ Empty database file created');
     }
+  } else {
+    log.info('✅ Database file exists');
+  }
+  
+  // Verificar permisos
+  try {
+    fs.accessSync(dbPath, fs.constants.R_OK | fs.constants.W_OK);
+    log.info('✅ Database file has read/write permissions');
+  } catch (error) {
+    log.error('❌ Database file permissions error:', error);
+    throw new Error(`No hay permisos para acceder a la base de datos: ${dbPath}`);
   }
   
   return dbPath;
@@ -555,6 +665,9 @@ async function initializeApp() {
   try {
     splash = createSplashWindow();
     log.info("🚀 Initializing...");
+
+    // Inicializar base de datos ANTES de iniciar el backend
+    await initializeDatabase();
 
     await startBackend();
     await waitForBackend();
