@@ -63,6 +63,9 @@ jobs:
       - name: 🔧 Build backend
         run: npm run build:backend
 
+      - name: 📥 Download Node.js portable
+        run: node scripts/download-node.js
+
       - name: 🔍 Verify backend files
         working-directory: backend
         run: |

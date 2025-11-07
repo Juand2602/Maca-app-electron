@@ -18,6 +18,35 @@ log.info("App starting...");
 
 // ============= FUNCIONES AUXILIARES =============
 
+function getNodeExecutable() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    // En desarrollo, usar Node.js del sistema
+    return process.platform === 'win32' ? 'node' : 'node';
+  } else {
+    // En producción, usar Node.js portable incluido
+    const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
+    
+    console.log('Looking for Node.js at:', nodePath);
+    
+    if (fs.existsSync(nodePath)) {
+      console.log('✅ Node.js portable found');
+      return nodePath;
+    } else {
+      console.error('❌ Node.js portable NOT found at:', nodePath);
+      console.log('📂 Contents of resources:');
+      try {
+        const files = fs.readdirSync(process.resourcesPath);
+        console.log(files);
+      } catch (e) {
+        console.error('Cannot read resources:', e);
+      }
+      throw new Error('Node.js portable no encontrado. Por favor reinstala la aplicación.');
+    }
+  }
+}
+
 function getBackendPath() {
   const isDev = !app.isPackaged;
   
