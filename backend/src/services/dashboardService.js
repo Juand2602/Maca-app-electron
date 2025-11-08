@@ -1,6 +1,5 @@
 // backend/src/services/dashboardService.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 class DashboardService {
   // Obtener estadísticas generales del dashboard

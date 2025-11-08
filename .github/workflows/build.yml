@@ -30,9 +30,47 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: 🗄️ Generate Prisma Client
+      - name: 🗄️ Setup Database
         working-directory: backend
-        run: npx prisma generate
+        run: |
+          Write-Host "=== SETUP DATABASE ===" -ForegroundColor Cyan
+          
+          # Crear directorio database si no existe
+          if (!(Test-Path "../database")) {
+            New-Item -ItemType Directory -Path "../database" -Force | Out-Null
+            Write-Host "✅ Database directory created" -ForegroundColor Green
+          }
+          
+          # Crear archivo .env temporal para generar Prisma Client
+          $env:DATABASE_URL = "file:../database/calzado.db"
+          Write-Host "DATABASE_URL=$env:DATABASE_URL" | Out-File -FilePath ".env" -Encoding UTF8
+          
+          Write-Host ""
+          Write-Host "Generating Prisma Client..." -ForegroundColor Yellow
+          npx prisma generate
+          
+          Write-Host ""
+          Write-Host "Creating database and running migrations..." -ForegroundColor Yellow
+          npx prisma migrate deploy
+          
+          Write-Host ""
+          Write-Host "Seeding database with admin user..." -ForegroundColor Yellow
+          npm run prisma:seed
+          
+          # Verificar que la DB se creó
+          if (Test-Path "../database/calzado.db") {
+            $dbSize = [math]::Round((Get-Item "../database/calzado.db").Length / 1KB, 2)
+            Write-Host "✅ Database created: $dbSize KB" -ForegroundColor Green
+          } else {
+            Write-Host "❌ ERROR: Database not created" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "✅ Database setup complete" -ForegroundColor Green
+        shell: pwsh
+        env:
+          DATABASE_URL: "file:../database/calzado.db"
 
       - name: 🔨 Build frontend
         working-directory: frontend

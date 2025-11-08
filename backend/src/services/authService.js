@@ -1,9 +1,7 @@
     // backend/src/services/authService.js
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../middleware/auth');
-
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 class AuthService {
   
