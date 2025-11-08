@@ -1,13 +1,16 @@
+// Agregar esta función mejorada a tu electron/main.js
+
 async function initializeDatabase() {
   const isDev = !app.isPackaged;
-  if (isDev) return; // En desarrollo no es necesario
   
   log.info("🗄️ Initializing database...");
   
   const databasePath = getDatabasePath();
-  const backendDir = path.join(process.resourcesPath, "backend");
+  const backendDir = isDev 
+    ? path.join(__dirname, "../backend")
+    : path.join(process.resourcesPath, "backend");
   const nodeModulesPath = getBackendNodeModules();
-  const schemaPath = path.join(process.resourcesPath, "backend", "prisma", "schema.prisma");
+  const schemaPath = path.join(backendDir, "prisma", "schema.prisma");
   
   // Verificar si el schema existe
   if (!fs.existsSync(schemaPath)) {
@@ -51,24 +54,75 @@ async function initializeDatabase() {
     
     log.info("✅ Database migrations applied successfully");
     
-    // Opcional: Ejecutar seed si existe
+    // Ejecutar seed solo si la DB está vacía
     const seedPath = path.join(backendDir, 'prisma', 'seed.js');
     if (fs.existsSync(seedPath)) {
-      log.info("Running database seed...");
-      execSync(`"${nodeExe}" "${seedPath}"`, {
-        cwd: backendDir,
-        env: env,
-        stdio: 'pipe'
-      });
-      log.info("✅ Database seeded");
+      log.info("Checking if database needs seeding...");
+      
+      // Verificar si ya hay usuarios
+      const checkScript = `
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient({
+          datasources: { db: { url: '${env.DATABASE_URL}' } }
+        });
+        prisma.user.count()
+          .then(count => {
+            console.log(count);
+            process.exit(0);
+          })
+          .catch(() => {
+            console.log(0);
+            process.exit(0);
+          })
+          .finally(() => prisma.$disconnect());
+      `;
+      
+      const tempCheckFile = path.join(backendDir, 'temp-check.js');
+      fs.writeFileSync(tempCheckFile, checkScript);
+      
+      try {
+        const userCount = execSync(`"${nodeExe}" "${tempCheckFile}"`, {
+          cwd: backendDir,
+          env: env,
+          encoding: 'utf8'
+        }).trim();
+        
+        fs.unlinkSync(tempCheckFile);
+        
+        if (parseInt(userCount) === 0) {
+          log.info("Running database seed...");
+          execSync(`"${nodeExe}" "${seedPath}"`, {
+            cwd: backendDir,
+            env: env,
+            stdio: 'pipe'
+          });
+          log.info("✅ Database seeded");
+        } else {
+          log.info("✅ Database already has data, skipping seed");
+        }
+      } catch (error) {
+        if (fs.existsSync(tempCheckFile)) {
+          fs.unlinkSync(tempCheckFile);
+        }
+        log.warn("Could not check user count, attempting seed anyway");
+        try {
+          execSync(`"${nodeExe}" "${seedPath}"`, {
+            cwd: backendDir,
+            env: env,
+            stdio: 'pipe'
+          });
+          log.info("✅ Database seeded");
+        } catch (seedError) {
+          log.warn("Seed failed (may already be seeded):", seedError.message);
+        }
+      }
     }
     
   } catch (error) {
     log.error("❌ Database initialization failed:", error.message);
     log.error("This is not critical - the app will continue to start");
-    // No detenemos la app, solo logueamos el error
   }
-}// electron/main.js
+}
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");

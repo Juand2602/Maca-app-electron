@@ -30,62 +30,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: 🗄️ Setup Database
+      - name: 🗄️ Generate Prisma Client
         working-directory: backend
         run: |
-          Write-Host "=== SETUP DATABASE ===" -ForegroundColor Cyan
-          Write-Host ""
-          
-          # Crear directorio database en la RAÍZ del proyecto
-          $rootPath = Split-Path -Parent $PWD
-          $databaseDir = Join-Path $rootPath "database"
-          
-          if (!(Test-Path $databaseDir)) {
-            New-Item -ItemType Directory -Path $databaseDir -Force | Out-Null
-            Write-Host "✅ Database directory created" -ForegroundColor Green
-          }
-          
-          # Configurar DATABASE_URL apuntando a la raíz
-          $dbPath = Join-Path $databaseDir "calzado.db"
-          $env:DATABASE_URL = "file:$dbPath"
-          
-          # Crear archivo .env
-          "DATABASE_URL=$env:DATABASE_URL" | Out-File -FilePath ".env" -Encoding UTF8
-          Write-Host "✅ Environment configured" -ForegroundColor Green
-          Write-Host "   DATABASE_URL: $env:DATABASE_URL" -ForegroundColor Cyan
-          Write-Host ""
-          
-          # Generar Prisma Client
-          Write-Host "📦 Generating Prisma Client..." -ForegroundColor Yellow
-          npx prisma generate | Out-Null
+          Write-Host "=== GENERATING PRISMA CLIENT ===" -ForegroundColor Cyan
+          npx prisma generate
           Write-Host "✅ Prisma Client generated" -ForegroundColor Green
-          Write-Host ""
-          
-          # Crear base de datos y aplicar migraciones
-          Write-Host "🗄️  Creating database and running migrations..." -ForegroundColor Yellow
-          npx prisma migrate deploy
-          Write-Host ""
-          
-          # Ejecutar seed
-          Write-Host "🌱 Seeding database with admin user..." -ForegroundColor Yellow
-          npm run prisma:seed
-          Write-Host ""
-          
-          # Verificación final
-          if (Test-Path $dbPath) {
-            $dbSize = [math]::Round((Get-Item $dbPath).Length / 1KB, 2)
-            Write-Host ("=" * 60) -ForegroundColor Green
-            Write-Host "✅ DATABASE SETUP COMPLETE" -ForegroundColor Green
-            Write-Host ("=" * 60) -ForegroundColor Green
-            Write-Host "   Location: database/calzado.db" -ForegroundColor Cyan
-            Write-Host "   Size: $dbSize KB" -ForegroundColor Cyan
-            Write-Host "   Admin user: admin@sistema.com" -ForegroundColor Cyan
-            Write-Host "   Password: admin123" -ForegroundColor Cyan
-            Write-Host ("=" * 60) -ForegroundColor Green
-          } else {
-            Write-Host "❌ ERROR: Database file not found!" -ForegroundColor Red
-            exit 1
-          }
         shell: pwsh
 
       - name: 🔨 Build frontend
@@ -277,16 +227,20 @@ jobs:
             ### 📥 Instalación
             1. Descarga `Sistema-Calzado-Setup-${{ steps.version.outputs.VERSION }}.exe`
             2. Ejecuta el instalador
-            3. Sigue las instrucciones en pantalla
+            3. La base de datos se creará automáticamente en la primera ejecución
+            
+            ### 🔐 Usuario por Defecto
+            - **Email**: admin@sistema.com
+            - **Contraseña**: admin123
             
             ### ⚠️ IMPORTANTE
             - **Node.js incluido**: No necesitas instalar Node.js por separado
-            - **Primera instalación**: La aplicación puede tardar unos segundos en iniciar
+            - **Primera ejecución**: La app creará la base de datos automáticamente
             - **Antivirus**: Algunos antivirus pueden bloquear la primera ejecución
             
             ### ✨ Características
             - ✅ Backend integrado (Node.js portable incluido)
-            - ✅ Base de datos SQLite incluida
+            - ✅ Base de datos SQLite (se crea automáticamente)
             - ✅ Interfaz moderna con React + Tailwind
             - ✅ Sistema de autenticación seguro
             - ✅ Gestión de inventario, ventas y proveedores
@@ -314,5 +268,6 @@ jobs:
           Write-Host ""
           Write-Host "================================================" -ForegroundColor Green
           Write-Host "✅ Release created successfully!" -ForegroundColor Green
+          Write-Host "   Database will be created on first run" -ForegroundColor Cyan
           Write-Host "================================================" -ForegroundColor Green
         shell: pwsh
