@@ -35,15 +35,22 @@ jobs:
         run: |
           Write-Host "=== SETUP DATABASE ===" -ForegroundColor Cyan
           
-          # Crear directorio database si no existe
-          if (!(Test-Path "../database")) {
-            New-Item -ItemType Directory -Path "../database" -Force | Out-Null
-            Write-Host "✅ Database directory created" -ForegroundColor Green
+          # Crear directorio database en la RAÍZ del proyecto
+          $rootPath = Split-Path -Parent $PWD
+          $databaseDir = Join-Path $rootPath "database"
+          
+          if (!(Test-Path $databaseDir)) {
+            New-Item -ItemType Directory -Path $databaseDir -Force | Out-Null
+            Write-Host "✅ Database directory created at: $databaseDir" -ForegroundColor Green
           }
           
-          # Crear archivo .env temporal para generar Prisma Client
-          $env:DATABASE_URL = "file:../database/calzado.db"
-          Write-Host "DATABASE_URL=$env:DATABASE_URL" | Out-File -FilePath ".env" -Encoding UTF8
+          # Configurar DATABASE_URL apuntando a la raíz
+          $dbPath = Join-Path $databaseDir "calzado.db"
+          $env:DATABASE_URL = "file:$dbPath"
+          Write-Host "DATABASE_URL=$env:DATABASE_URL" -ForegroundColor Yellow
+          
+          # Crear archivo .env
+          "DATABASE_URL=$env:DATABASE_URL" | Out-File -FilePath ".env" -Encoding UTF8
           
           Write-Host ""
           Write-Host "Generating Prisma Client..." -ForegroundColor Yellow
@@ -57,12 +64,65 @@ jobs:
           Write-Host "Seeding database with admin user..." -ForegroundColor Yellow
           npm run prisma:seed
           
-          # Verificar que la DB se creó
-          if (Test-Path "../database/calzado.db") {
-            $dbSize = [math]::Round((Get-Item "../database/calzado.db").Length / 1KB, 2)
-            Write-Host "✅ Database created: $dbSize KB" -ForegroundColor Green
+          # Verificar que la DB se creó en la ubicación correcta
+          Write-Host ""
+          Write-Host "Verifying database creation..." -ForegroundColor Yellow
+          
+          if (Test-Path $dbPath) {
+            $dbSize = [math]::Round((Get-Item $dbPath).Length / 1KB, 2)
+            Write-Host "✅ Database created successfully!" -ForegroundColor Green
+            Write-Host "   Location: $dbPath" -ForegroundColor Cyan
+            Write-Host "   Size: $dbSize KB" -ForegroundColor Cyan
           } else {
-            Write-Host "❌ ERROR: Database not created" -ForegroundColor Red
+            Write-Host "❌ ERROR: Database not found at: $dbPath" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "Searching for database files..." -ForegroundColor Yellow
+            Get-ChildItem -Path $rootPath -Filter "*.db" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "   Found: $($_.FullName)" -ForegroundColor Yellow
+            }
+            exit 1
+          }
+          
+          # Verificar contenido de la base de datos
+          Write-Host ""
+          Write-Host "Verifying database content..." -ForegroundColor Yellow
+          
+          $verifyScript = @"
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient({
+            datasources: { db: { url: 'file:$dbPath' } }
+          });
+
+          async function verify() {
+            try {
+              const userCount = await prisma.user.count();
+              console.log('Users in database:', userCount);
+              
+              if (userCount > 0) {
+                const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+                if (admin) {
+                  console.log('Admin user found:', admin.email);
+                }
+              }
+              
+              await prisma.\$disconnect();
+              process.exit(userCount > 0 ? 0 : 1);
+            } catch (error) {
+              console.error('Verification error:', error.message);
+              process.exit(1);
+            }
+          }
+
+          verify();
+          "@
+          
+          $verifyScript | Out-File -FilePath "verify-db.js" -Encoding UTF8
+          node verify-db.js
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Database verification passed!" -ForegroundColor Green
+          } else {
+            Write-Host "❌ Database verification failed!" -ForegroundColor Red
             exit 1
           }
           

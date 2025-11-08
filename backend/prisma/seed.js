@@ -5,7 +5,9 @@ const path = require('path')
 
 // Configurar DATABASE_URL si no está definida
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = `file:${path.join(__dirname, '../database/calzado.db')}`
+  // Ruta desde backend/ hacia database/ en la raíz
+  const dbPath = path.resolve(__dirname, '../../database/calzado.db')
+  process.env.DATABASE_URL = `file:${dbPath}`
   console.log('📊 DATABASE_URL set to:', process.env.DATABASE_URL)
 }
 
@@ -14,7 +16,8 @@ const prisma = new PrismaClient({
     db: {
       url: process.env.DATABASE_URL
     }
-  }
+  },
+  log: ['error', 'warn']
 })
 
 async function main() {
