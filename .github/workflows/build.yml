@@ -74,14 +74,14 @@ jobs:
           # Verificación final
           if (Test-Path $dbPath) {
             $dbSize = [math]::Round((Get-Item $dbPath).Length / 1KB, 2)
-            Write-Host "=".repeat(60) -ForegroundColor Green
+            Write-Host ("=" * 60) -ForegroundColor Green
             Write-Host "✅ DATABASE SETUP COMPLETE" -ForegroundColor Green
-            Write-Host "=".repeat(60) -ForegroundColor Green
+            Write-Host ("=" * 60) -ForegroundColor Green
             Write-Host "   Location: database/calzado.db" -ForegroundColor Cyan
             Write-Host "   Size: $dbSize KB" -ForegroundColor Cyan
             Write-Host "   Admin user: admin@sistema.com" -ForegroundColor Cyan
             Write-Host "   Password: admin123" -ForegroundColor Cyan
-            Write-Host "=".repeat(60) -ForegroundColor Green
+            Write-Host ("=" * 60) -ForegroundColor Green
           } else {
             Write-Host "❌ ERROR: Database file not found!" -ForegroundColor Red
             exit 1
