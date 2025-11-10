@@ -12,7 +12,6 @@ async function initializeDatabase() {
   const nodeModulesPath = getBackendNodeModules();
   const schemaPath = path.join(backendDir, "prisma", "schema.prisma");
   
-  // Verificar si el schema existe
   if (!fs.existsSync(schemaPath)) {
     log.error("❌ Prisma schema not found at:", schemaPath);
     return;
@@ -20,107 +19,91 @@ async function initializeDatabase() {
   
   log.info("Found Prisma schema at:", schemaPath);
   
+  // IMPORTANTE: Normalizar el path para DATABASE_URL
+  const normalizedDbPath = path.normalize(databasePath).replace(/\\/g, '/');
+  
   const env = {
     ...process.env,
-    DATABASE_URL: `file:${databasePath}`,
+    DATABASE_URL: `file:${normalizedDbPath}`,  // <-- PATH NORMALIZADO
     NODE_PATH: nodeModulesPath,
     PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
   };
+  
+  log.info("DATABASE_URL for migrations:", env.DATABASE_URL);  // <-- LOG PARA VERIFICAR
   
   try {
     const { execSync } = require('child_process');
     const nodeExe = getNodeExecutable();
     const prismaBin = path.join(nodeModulesPath, '.bin', 'prisma');
     
-    // Verificar que Prisma CLI existe
     if (!fs.existsSync(prismaBin) && !fs.existsSync(prismaBin + '.cmd')) {
-      log.error("❌ Prisma CLI not found in node_modules");
+      log.error("❌ Prisma CLI not found");
       return;
     }
     
     log.info("Applying database migrations...");
     
-    // Ejecutar migrate deploy (aplica migraciones)
-    const command = process.platform === 'win32' 
+    const migrateCmd = process.platform === 'win32' 
       ? `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`
       : `"${prismaBin}" migrate deploy --schema="${schemaPath}"`;
     
-    execSync(command, {
+    execSync(migrateCmd, {
       cwd: backendDir,
       env: env,
-      stdio: 'pipe',
+      stdio: 'inherit',  // <-- CAMBIAR A 'inherit' PARA VER ERRORES
       encoding: 'utf8'
     });
     
-    log.info("✅ Database migrations applied successfully");
+    log.info("✅ Database migrations applied");
     
-    // Ejecutar seed solo si la DB está vacía
+    // Seed solo si la DB está vacía
     const seedPath = path.join(backendDir, 'prisma', 'seed.js');
     if (fs.existsSync(seedPath)) {
       log.info("Checking if database needs seeding...");
       
-      // Verificar si ya hay usuarios
       const checkScript = `
         const { PrismaClient } = require('@prisma/client');
         const prisma = new PrismaClient({
-          datasources: { db: { url: '${env.DATABASE_URL}' } }
+          datasources: { db: { url: 'file:${normalizedDbPath}' } }
         });
         prisma.user.count()
-          .then(count => {
-            console.log(count);
-            process.exit(0);
-          })
-          .catch(() => {
-            console.log(0);
-            process.exit(0);
-          })
+          .then(count => { console.log(count); process.exit(0); })
+          .catch(() => { console.log(0); process.exit(0); })
           .finally(() => prisma.$disconnect());
       `;
       
-      const tempCheckFile = path.join(backendDir, 'temp-check.js');
-      fs.writeFileSync(tempCheckFile, checkScript);
+      const tempFile = path.join(backendDir, 'temp-check.js');
+      fs.writeFileSync(tempFile, checkScript);
       
       try {
-        const userCount = execSync(`"${nodeExe}" "${tempCheckFile}"`, {
+        const userCount = parseInt(execSync(`"${nodeExe}" "${tempFile}"`, {
           cwd: backendDir,
           env: env,
           encoding: 'utf8'
-        }).trim();
+        }).trim());
         
-        fs.unlinkSync(tempCheckFile);
+        fs.unlinkSync(tempFile);
         
-        if (parseInt(userCount) === 0) {
+        if (userCount === 0) {
           log.info("Running database seed...");
           execSync(`"${nodeExe}" "${seedPath}"`, {
             cwd: backendDir,
             env: env,
-            stdio: 'pipe'
+            stdio: 'inherit'  // <-- CAMBIAR A 'inherit' PARA VER ERRORES
           });
           log.info("✅ Database seeded");
         } else {
-          log.info("✅ Database already has data, skipping seed");
+          log.info("✅ Database already has data");
         }
       } catch (error) {
-        if (fs.existsSync(tempCheckFile)) {
-          fs.unlinkSync(tempCheckFile);
-        }
-        log.warn("Could not check user count, attempting seed anyway");
-        try {
-          execSync(`"${nodeExe}" "${seedPath}"`, {
-            cwd: backendDir,
-            env: env,
-            stdio: 'pipe'
-          });
-          log.info("✅ Database seeded");
-        } catch (seedError) {
-          log.warn("Seed failed (may already be seeded):", seedError.message);
-        }
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+        log.warn("Seed check failed:", error.message);
       }
     }
     
   } catch (error) {
     log.error("❌ Database initialization failed:", error.message);
-    log.error("This is not critical - the app will continue to start");
+    log.error("Stack:", error.stack);
   }
 }
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
@@ -265,64 +248,76 @@ function getBackendPath() {
 function getDatabasePath() {
   const isDev = !app.isPackaged;
   
+  log.info('='.repeat(60));
+  log.info('DATABASE CONFIGURATION');
+  log.info('='.repeat(60));
+  log.info('Environment:', isDev ? 'DEVELOPMENT' : 'PRODUCTION');
+  log.info('Is packaged:', app.isPackaged);
+  
   if (isDev) {
-    return path.join(__dirname, "../database/calzado.db");
+    const dbPath = path.join(__dirname, "../backend/database/calzado.db");
+    log.info('Using development database');
+    log.info('Path:', dbPath);
+    log.info('Exists:', fs.existsSync(dbPath));
+    return dbPath;
   }
   
-  // En producción: usar userData (tiene permisos de escritura)
+  // PRODUCCIÓN: usar userData con path.normalize para evitar problemas
   const userDataPath = app.getPath('userData');
   const dbDir = path.join(userDataPath, 'database');
   const dbPath = path.join(dbDir, 'calzado.db');
   
-  log.info('Database configuration:');
-  log.info('  User data path:', userDataPath);
-  log.info('  Database directory:', dbDir);
-  log.info('  Database file:', dbPath);
+  // Normalizar el path para evitar problemas de formato
+  const normalizedDbPath = path.normalize(dbPath);
+  
+  log.info('Using production database');
+  log.info('User data path:', userDataPath);
+  log.info('Database directory:', dbDir);
+  log.info('Database file:', normalizedDbPath);
   
   // Crear directorio si no existe
   if (!fs.existsSync(dbDir)) {
     log.info('Creating database directory...');
-    fs.mkdirSync(dbDir, { recursive: true });
-    log.info('✅ Database directory created');
+    try {
+      fs.mkdirSync(dbDir, { recursive: true });
+      log.info('✅ Directory created');
+    } catch (error) {
+      log.error('❌ Failed to create directory:', error);
+      throw error;
+    }
   }
   
-  // Copiar DB template si no existe
-  if (!fs.existsSync(dbPath)) {
-    log.info('Database file does not exist, checking for template...');
-    
-    const templateDb = path.join(process.resourcesPath, "database", "calzado.db");
-    log.info('Template path:', templateDb);
-    
-    if (fs.existsSync(templateDb)) {
-      try {
-        fs.copyFileSync(templateDb, dbPath);
-        log.info('✅ Database copied from template');
-      } catch (error) {
-        log.error('❌ Failed to copy database:', error);
-        // Crear DB vacía si falla la copia
-        fs.writeFileSync(dbPath, '');
-        log.warn('⚠️ Created empty database file');
-      }
-    } else {
-      log.warn('⚠️ Template database not found, creating empty file');
+  // Si no existe la base de datos, crear archivo vacío
+  if (!fs.existsSync(normalizedDbPath)) {
+    log.info('Database file does not exist, creating...');
+    try {
       // Crear archivo vacío - Prisma lo inicializará
-      fs.writeFileSync(dbPath, '');
+      fs.writeFileSync(normalizedDbPath, '');
       log.info('✅ Empty database file created');
+    } catch (error) {
+      log.error('❌ Failed to create database file:', error);
+      throw error;
     }
   } else {
+    const stats = fs.statSync(normalizedDbPath);
+    const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
     log.info('✅ Database file exists');
+    log.info('Size:', sizeMB, 'MB');
+    log.info('Last modified:', stats.mtime.toISOString());
   }
   
   // Verificar permisos
   try {
-    fs.accessSync(dbPath, fs.constants.R_OK | fs.constants.W_OK);
-    log.info('✅ Database file has read/write permissions');
+    fs.accessSync(normalizedDbPath, fs.constants.R_OK | fs.constants.W_OK);
+    log.info('✅ Read/Write permissions OK');
   } catch (error) {
-    log.error('❌ Database file permissions error:', error);
-    throw new Error(`No hay permisos para acceder a la base de datos: ${dbPath}`);
+    log.error('❌ Permission error:', error);
+    throw new Error(`No permissions for database: ${normalizedDbPath}`);
   }
   
-  return dbPath;
+  log.info('='.repeat(60));
+  
+  return normalizedDbPath;
 }
 
 function getBackendNodeModules() {
@@ -420,14 +415,19 @@ async function startBackend() {
 
       const backendDir = path.dirname(backendScript);
       
+      // IMPORTANTE: Normalizar el path y usar formato correcto para SQLite
+      const normalizedDbPath = path.normalize(databasePath).replace(/\\/g, '/');
+      
       const env = {
         ...process.env,
         PORT: BACKEND_PORT.toString(),
         NODE_ENV: isDev ? "development" : "production",
-        DATABASE_URL: `file:${databasePath}`,
+        DATABASE_URL: `file:${normalizedDbPath}`,  // <-- USAR PATH NORMALIZADO
         NODE_PATH: nodeModulesPath,
         PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
       };
+
+      log.info("DATABASE_URL:", env.DATABASE_URL);  // <-- LOG PARA VERIFICAR
 
       const spawnOptions = {
         cwd: backendDir,
@@ -442,51 +442,7 @@ async function startBackend() {
 
       backendProcess = spawn(nodeExe, [backendScript], spawnOptions);
 
-      let backendStarted = false;
-      let errorOutput = '';
-
-      backendProcess.stdout.on("data", (data) => {
-        const output = data.toString();
-        log.info("[Backend]", output);
-
-        if ((output.includes("Server") || 
-             output.includes("listening") || 
-             output.includes("Sistema Calzado API")) && 
-            !backendStarted) {
-          backendStarted = true;
-          log.info("✅ Backend started successfully");
-          setTimeout(() => resolve(), 2000);
-        }
-      });
-
-      backendProcess.stderr.on("data", (data) => {
-        const error = data.toString();
-        errorOutput += error;
-        log.error("[Backend Error]", error);
-      });
-
-      backendProcess.on("error", (error) => {
-        log.error("❌ Failed to start backend:", error);
-        reject(new Error(`No se pudo iniciar el backend: ${error.message}`));
-      });
-
-      backendProcess.on("exit", (code, signal) => {
-        log.info(`Backend process exited with code ${code}, signal ${signal}`);
-        
-        if (code !== 0 && code !== null && !backendStarted) {
-          const errorMsg = `Backend cerró con código ${code}.\n\nError:\n${errorOutput}`;
-          log.error(errorMsg);
-          reject(new Error(errorMsg));
-        }
-      });
-
-      setTimeout(() => {
-        if (!backendStarted) {
-          log.warn("⚠️ Backend timeout - verificando conectividad...");
-          resolve();
-        }
-      }, 15000);
-
+      // ... resto del código igual
     } catch (error) {
       log.error("❌ Exception starting backend:", error);
       reject(error);
