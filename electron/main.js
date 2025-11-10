@@ -1,111 +1,4 @@
-// Agregar esta función mejorada a tu electron/main.js
-
-async function initializeDatabase() {
-  const isDev = !app.isPackaged;
-  
-  log.info("🗄️ Initializing database...");
-  
-  const databasePath = getDatabasePath();
-  const backendDir = isDev 
-    ? path.join(__dirname, "../backend")
-    : path.join(process.resourcesPath, "backend");
-  const nodeModulesPath = getBackendNodeModules();
-  const schemaPath = path.join(backendDir, "prisma", "schema.prisma");
-  
-  if (!fs.existsSync(schemaPath)) {
-    log.error("❌ Prisma schema not found at:", schemaPath);
-    return;
-  }
-  
-  log.info("Found Prisma schema at:", schemaPath);
-  
-  // IMPORTANTE: Normalizar el path para DATABASE_URL
-  const normalizedDbPath = path.normalize(databasePath).replace(/\\/g, '/');
-  
-  const env = {
-    ...process.env,
-    DATABASE_URL: `file:${normalizedDbPath}`,  // <-- PATH NORMALIZADO
-    NODE_PATH: nodeModulesPath,
-    PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
-  };
-  
-  log.info("DATABASE_URL for migrations:", env.DATABASE_URL);  // <-- LOG PARA VERIFICAR
-  
-  try {
-    const { execSync } = require('child_process');
-    const nodeExe = getNodeExecutable();
-    const prismaBin = path.join(nodeModulesPath, '.bin', 'prisma');
-    
-    if (!fs.existsSync(prismaBin) && !fs.existsSync(prismaBin + '.cmd')) {
-      log.error("❌ Prisma CLI not found");
-      return;
-    }
-    
-    log.info("Applying database migrations...");
-    
-    const migrateCmd = process.platform === 'win32' 
-      ? `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`
-      : `"${prismaBin}" migrate deploy --schema="${schemaPath}"`;
-    
-    execSync(migrateCmd, {
-      cwd: backendDir,
-      env: env,
-      stdio: 'inherit',  // <-- CAMBIAR A 'inherit' PARA VER ERRORES
-      encoding: 'utf8'
-    });
-    
-    log.info("✅ Database migrations applied");
-    
-    // Seed solo si la DB está vacía
-    const seedPath = path.join(backendDir, 'prisma', 'seed.js');
-    if (fs.existsSync(seedPath)) {
-      log.info("Checking if database needs seeding...");
-      
-      const checkScript = `
-        const { PrismaClient } = require('@prisma/client');
-        const prisma = new PrismaClient({
-          datasources: { db: { url: 'file:${normalizedDbPath}' } }
-        });
-        prisma.user.count()
-          .then(count => { console.log(count); process.exit(0); })
-          .catch(() => { console.log(0); process.exit(0); })
-          .finally(() => prisma.$disconnect());
-      `;
-      
-      const tempFile = path.join(backendDir, 'temp-check.js');
-      fs.writeFileSync(tempFile, checkScript);
-      
-      try {
-        const userCount = parseInt(execSync(`"${nodeExe}" "${tempFile}"`, {
-          cwd: backendDir,
-          env: env,
-          encoding: 'utf8'
-        }).trim());
-        
-        fs.unlinkSync(tempFile);
-        
-        if (userCount === 0) {
-          log.info("Running database seed...");
-          execSync(`"${nodeExe}" "${seedPath}"`, {
-            cwd: backendDir,
-            env: env,
-            stdio: 'inherit'  // <-- CAMBIAR A 'inherit' PARA VER ERRORES
-          });
-          log.info("✅ Database seeded");
-        } else {
-          log.info("✅ Database already has data");
-        }
-      } catch (error) {
-        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        log.warn("Seed check failed:", error.message);
-      }
-    }
-    
-  } catch (error) {
-    log.error("❌ Database initialization failed:", error.message);
-    log.error("Stack:", error.stack);
-  }
-}
+// electron/main.js
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -136,7 +29,6 @@ function isAppInstalled() {
   const exePath = app.getPath('exe').toLowerCase();
   const exeDir = path.dirname(exePath);
   
-  // Método 1: Verificar si está en carpetas típicas de instalación
   const isInProgramFiles = appPath.includes('program files') || 
                            appPath.includes('programfiles') ||
                            exePath.includes('program files') ||
@@ -145,25 +37,16 @@ function isAppInstalled() {
   const isInAppData = appPath.includes('appdata\\local\\programs') ||
                       exePath.includes('appdata\\local\\programs');
   
-  // Método 2: Verificar si el ejecutable NO está en win-unpacked (modo portable)
   const isInUnpacked = exePath.includes('win-unpacked') || appPath.includes('win-unpacked');
   
-  // Método 3: Verificar si existe el archivo uninstall.exe (creado por NSIS)
   const uninstallPath = path.join(exeDir, 'Uninstall Sistema Calzado.exe');
   const hasUninstaller = fs.existsSync(uninstallPath);
   
-  // Método 4: Verificar archivo marker .installed
   const markerPath = path.join(exeDir, '.installed');
   const hasMarker = fs.existsSync(markerPath);
   
-  // Método 5: Verificar si resources está empaquetado en app.asar
   const hasAsar = fs.existsSync(path.join(exeDir, 'resources', 'app.asar'));
   
-  // La app está instalada si:
-  // - Tiene un desinstalador (NSIS), O
-  // - Tiene el archivo marker, O
-  // - Está empaquetada con ASAR (no portable), Y
-  // - NO está en win-unpacked
   const installed = (hasUninstaller || hasMarker || hasAsar) && !isInUnpacked;
   
   log.info('='.repeat(60));
@@ -255,27 +138,29 @@ function getDatabasePath() {
   log.info('Is packaged:', app.isPackaged);
   
   if (isDev) {
-    const dbPath = path.join(__dirname, "../backend/database/calzado.db");
+    const dbDir = path.join(__dirname, "../backend/database");
+    const dbPath = path.join(dbDir, "calzado.db");
+    
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    
     log.info('Using development database');
     log.info('Path:', dbPath);
     log.info('Exists:', fs.existsSync(dbPath));
+    
     return dbPath;
   }
   
-  // PRODUCCIÓN: usar userData con path.normalize para evitar problemas
   const userDataPath = app.getPath('userData');
   const dbDir = path.join(userDataPath, 'database');
   const dbPath = path.join(dbDir, 'calzado.db');
   
-  // Normalizar el path para evitar problemas de formato
-  const normalizedDbPath = path.normalize(dbPath);
-  
   log.info('Using production database');
   log.info('User data path:', userDataPath);
   log.info('Database directory:', dbDir);
-  log.info('Database file:', normalizedDbPath);
+  log.info('Database file:', dbPath);
   
-  // Crear directorio si no existe
   if (!fs.existsSync(dbDir)) {
     log.info('Creating database directory...');
     try {
@@ -287,37 +172,37 @@ function getDatabasePath() {
     }
   }
   
-  // Si no existe la base de datos, crear archivo vacío
-  if (!fs.existsSync(normalizedDbPath)) {
-    log.info('Database file does not exist, creating...');
+  if (!fs.existsSync(dbPath)) {
+    log.info('Database file does not exist, creating empty file...');
     try {
-      // Crear archivo vacío - Prisma lo inicializará
-      fs.writeFileSync(normalizedDbPath, '');
+      fs.writeFileSync(dbPath, '');
       log.info('✅ Empty database file created');
     } catch (error) {
       log.error('❌ Failed to create database file:', error);
       throw error;
     }
   } else {
-    const stats = fs.statSync(normalizedDbPath);
-    const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-    log.info('✅ Database file exists');
-    log.info('Size:', sizeMB, 'MB');
-    log.info('Last modified:', stats.mtime.toISOString());
+    try {
+      const stats = fs.statSync(dbPath);
+      const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+      log.info('✅ Database file exists');
+      log.info('Size:', sizeMB, 'MB');
+      log.info('Last modified:', stats.mtime.toISOString());
+    } catch (error) {
+      log.warn('Could not read database stats:', error.message);
+    }
   }
   
-  // Verificar permisos
   try {
-    fs.accessSync(normalizedDbPath, fs.constants.R_OK | fs.constants.W_OK);
+    fs.accessSync(dbPath, fs.constants.R_OK | fs.constants.W_OK);
     log.info('✅ Read/Write permissions OK');
   } catch (error) {
     log.error('❌ Permission error:', error);
-    throw new Error(`No permissions for database: ${normalizedDbPath}`);
   }
   
   log.info('='.repeat(60));
   
-  return normalizedDbPath;
+  return dbPath;
 }
 
 function getBackendNodeModules() {
@@ -328,6 +213,281 @@ function getBackendNodeModules() {
   }
   
   return path.join(process.resourcesPath, "backend", "node_modules");
+}
+
+// ============= INICIALIZACIÓN DE BASE DE DATOS =============
+
+async function initializeDatabase() {
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    log.info("Development mode - skipping database initialization");
+    return;
+  }
+  
+  log.info("🗄️ Initializing database...");
+  
+  try {
+    const databasePath = getDatabasePath();
+    const backendDir = path.join(process.resourcesPath, "backend");
+    const nodeModulesPath = getBackendNodeModules();
+    const schemaPath = path.join(backendDir, "prisma", "schema.prisma");
+    
+    if (!fs.existsSync(schemaPath)) {
+      log.error("❌ Prisma schema not found at:", schemaPath);
+      return;
+    }
+    
+    log.info("Found Prisma schema at:", schemaPath);
+    
+    const normalizedDbPath = databasePath.replace(/\\/g, '/');
+    
+    const env = {
+      ...process.env,
+      DATABASE_URL: `file:${normalizedDbPath}`,
+      NODE_PATH: nodeModulesPath,
+      PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+    };
+    
+    log.info("DATABASE_URL for migrations:", env.DATABASE_URL);
+    
+    const { execSync } = require('child_process');
+    const nodeExe = getNodeExecutable();
+    const prismaBin = path.join(nodeModulesPath, '.bin', 'prisma');
+    
+    const prismaExists = fs.existsSync(prismaBin) || fs.existsSync(prismaBin + '.cmd');
+    if (!prismaExists) {
+      log.error("❌ Prisma CLI not found");
+      return;
+    }
+    
+    log.info("Applying database migrations...");
+    
+    const migrateCmd = `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`;
+    
+    try {
+      const output = execSync(migrateCmd, {
+        cwd: backendDir,
+        env: env,
+        encoding: 'utf8',
+        stdio: 'pipe'
+      });
+      
+      log.info("✅ Database migrations applied");
+    } catch (migrateError) {
+      log.error("❌ Migration failed:", migrateError.message);
+      throw migrateError;
+    }
+    
+    const seedPath = path.join(backendDir, 'prisma', 'seed.js');
+    if (fs.existsSync(seedPath)) {
+      log.info("Checking if database needs seeding...");
+      
+      const checkScript = `
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient({
+  datasources: { db: { url: 'file:${normalizedDbPath}' } }
+});
+prisma.user.count()
+  .then(count => { 
+    console.log(count); 
+    return prisma.$disconnect(); 
+  })
+  .then(() => process.exit(0))
+  .catch((err) => { 
+    console.error(err);
+    return prisma.$disconnect(); 
+  })
+  .then(() => process.exit(1));
+`;
+      
+      const tempFile = path.join(backendDir, 'temp-check.js');
+      fs.writeFileSync(tempFile, checkScript);
+      
+      try {
+        const result = execSync(`"${nodeExe}" "${tempFile}"`, {
+          cwd: backendDir,
+          env: env,
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        
+        const userCount = parseInt(result.trim());
+        log.info("User count:", userCount);
+        
+        fs.unlinkSync(tempFile);
+        
+        if (userCount === 0) {
+          log.info("Running database seed...");
+          
+          execSync(`"${nodeExe}" "${seedPath}"`, {
+            cwd: backendDir,
+            env: env,
+            encoding: 'utf8',
+            stdio: 'pipe'
+          });
+          
+          log.info("✅ Database seeded");
+        } else {
+          log.info("✅ Database already has data");
+        }
+      } catch (checkError) {
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+        log.warn("Seed check/execution failed:", checkError.message);
+      }
+    }
+    
+    log.info("✅ Database initialization completed");
+    
+  } catch (error) {
+    log.error("❌ Database initialization failed:", error.message);
+    log.error("Stack trace:", error.stack);
+  }
+}
+
+// ============= BACKEND MANAGEMENT =============
+
+async function startBackend() {
+  return new Promise((resolve, reject) => {
+    log.info("🔧 Starting backend server...");
+
+    const isDev = !app.isPackaged;
+    
+    try {
+      const nodeExe = getNodeExecutable();
+      const backendScript = getBackendPath();
+      const databasePath = getDatabasePath();
+      const nodeModulesPath = getBackendNodeModules();
+
+      log.info("Node executable:", nodeExe);
+      log.info("Backend script:", backendScript);
+      log.info("Database path:", databasePath);
+      log.info("Node modules:", nodeModulesPath);
+
+      const backendDir = path.dirname(backendScript);
+      
+      const normalizedDbPath = databasePath.replace(/\\/g, '/');
+      
+      const env = {
+        ...process.env,
+        PORT: BACKEND_PORT.toString(),
+        NODE_ENV: isDev ? "development" : "production",
+        DATABASE_URL: `file:${normalizedDbPath}`,
+        NODE_PATH: nodeModulesPath,
+        PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+      };
+
+      log.info("DATABASE_URL:", env.DATABASE_URL);
+
+      const spawnOptions = {
+        cwd: backendDir,
+        env: env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true
+      };
+
+      if (!isDev) {
+        spawnOptions.shell = false;
+      }
+
+      backendProcess = spawn(nodeExe, [backendScript], spawnOptions);
+
+      let backendStarted = false;
+      let errorOutput = '';
+
+      backendProcess.stdout.on("data", (data) => {
+        const output = data.toString();
+        log.info("[Backend]", output);
+
+        if ((output.includes("Server") || 
+             output.includes("listening") || 
+             output.includes("Sistema Calzado API")) && 
+            !backendStarted) {
+          backendStarted = true;
+          log.info("✅ Backend started successfully");
+          setTimeout(() => resolve(), 2000);
+        }
+      });
+
+      backendProcess.stderr.on("data", (data) => {
+        const error = data.toString();
+        errorOutput += error;
+        log.error("[Backend Error]", error);
+      });
+
+      backendProcess.on("error", (error) => {
+        log.error("❌ Failed to start backend:", error);
+        reject(new Error(`No se pudo iniciar el backend: ${error.message}`));
+      });
+
+      backendProcess.on("exit", (code, signal) => {
+        log.info(`Backend process exited with code ${code}, signal ${signal}`);
+        
+        if (code !== 0 && code !== null && !backendStarted) {
+          const errorMsg = `Backend cerró con código ${code}.\n\nError:\n${errorOutput}`;
+          log.error(errorMsg);
+          reject(new Error(errorMsg));
+        }
+      });
+
+      setTimeout(() => {
+        if (!backendStarted) {
+          log.warn("⚠️ Backend timeout - verificando conectividad...");
+          resolve();
+        }
+      }, 15000);
+
+    } catch (error) {
+      log.error("❌ Exception starting backend:", error);
+      reject(error);
+    }
+  });
+}
+
+async function waitForBackend() {
+  const maxAttempts = 30;
+  const delay = 1000;
+
+  log.info("🔍 Waiting for backend...");
+
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { 
+        timeout: 3000 
+      });
+      
+      if (response.data.status === "ok") {
+        log.info("✅ Backend is ready!");
+        log.info("Backend info:", response.data);
+        return true;
+      }
+    } catch (error) {
+      log.info(`Attempt ${i + 1}/${maxAttempts} - Backend not ready yet`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw new Error("Backend no responde después de 30 intentos");
+}
+
+function stopBackend() {
+  if (backendProcess && !backendProcess.killed) {
+    log.info("🛑 Stopping backend...");
+    
+    if (process.platform === 'win32') {
+      try {
+        spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
+      } catch (e) {
+        log.error("Error killing backend:", e);
+      }
+    } else {
+      backendProcess.kill('SIGTERM');
+    }
+    
+    backendProcess = null;
+  }
 }
 
 // ============= AUTO-UPDATER =============
@@ -392,106 +552,6 @@ function setupAutoUpdater() {
       log.error("Update check failed:", err);
     });
   }, 10000);
-}
-
-// ============= BACKEND MANAGEMENT =============
-
-async function startBackend() {
-  return new Promise((resolve, reject) => {
-    log.info("🔧 Starting backend server...");
-
-    const isDev = !app.isPackaged;
-    
-    try {
-      const nodeExe = getNodeExecutable();
-      const backendScript = getBackendPath();
-      const databasePath = getDatabasePath();
-      const nodeModulesPath = getBackendNodeModules();
-
-      log.info("Node executable:", nodeExe);
-      log.info("Backend script:", backendScript);
-      log.info("Database path:", databasePath);
-      log.info("Node modules:", nodeModulesPath);
-
-      const backendDir = path.dirname(backendScript);
-      
-      // IMPORTANTE: Normalizar el path y usar formato correcto para SQLite
-      const normalizedDbPath = path.normalize(databasePath).replace(/\\/g, '/');
-      
-      const env = {
-        ...process.env,
-        PORT: BACKEND_PORT.toString(),
-        NODE_ENV: isDev ? "development" : "production",
-        DATABASE_URL: `file:${normalizedDbPath}`,  // <-- USAR PATH NORMALIZADO
-        NODE_PATH: nodeModulesPath,
-        PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
-      };
-
-      log.info("DATABASE_URL:", env.DATABASE_URL);  // <-- LOG PARA VERIFICAR
-
-      const spawnOptions = {
-        cwd: backendDir,
-        env: env,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true
-      };
-
-      if (!isDev) {
-        spawnOptions.shell = false;
-      }
-
-      backendProcess = spawn(nodeExe, [backendScript], spawnOptions);
-
-      // ... resto del código igual
-    } catch (error) {
-      log.error("❌ Exception starting backend:", error);
-      reject(error);
-    }
-  });
-}
-
-async function waitForBackend() {
-  const maxAttempts = 30;
-  const delay = 1000;
-
-  log.info("🔍 Waiting for backend...");
-
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { 
-        timeout: 3000 
-      });
-      
-      if (response.data.status === "ok") {
-        log.info("✅ Backend is ready!");
-        log.info("Backend info:", response.data);
-        return true;
-      }
-    } catch (error) {
-      log.info(`Attempt ${i + 1}/${maxAttempts} - Backend not ready yet`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-
-  throw new Error("Backend no responde después de 30 intentos");
-}
-
-function stopBackend() {
-  if (backendProcess && !backendProcess.killed) {
-    log.info("🛑 Stopping backend...");
-    
-    if (process.platform === 'win32') {
-      try {
-        spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
-      } catch (e) {
-        log.error("Error killing backend:", e);
-      }
-    } else {
-      backendProcess.kill('SIGTERM');
-    }
-    
-    backendProcess = null;
-  }
 }
 
 // ============= WINDOWS =============
@@ -561,7 +621,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: false,
+    show: true,  // ← CAMBIADO A true (OPCIÓN 3)
     backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
@@ -570,7 +630,7 @@ function createMainWindow() {
       preload: path.join(__dirname, "preload.js"),
       webSecurity: true,
       allowRunningInsecureContent: false,
-      devTools: true // Permitir DevTools incluso en producción
+      devTools: true
     },
   });
 
@@ -583,20 +643,10 @@ function createMainWindow() {
   log.info("   Is dev:", isDev);
   log.info("   __dirname:", __dirname);
   
-  // Verificar que el archivo existe en producción
   if (!isDev) {
     const indexPath = path.join(__dirname, "../frontend/dist/index.html");
     if (!fs.existsSync(indexPath)) {
       log.error("❌ index.html not found at:", indexPath);
-      log.error("   Directory contents:");
-      const distDir = path.join(__dirname, "../frontend/dist");
-      if (fs.existsSync(distDir)) {
-        fs.readdirSync(distDir).forEach(file => {
-          log.error("     -", file);
-        });
-      } else {
-        log.error("   dist directory does not exist!");
-      }
     } else {
       log.info("✅ index.html found at:", indexPath);
     }
@@ -606,7 +656,6 @@ function createMainWindow() {
     log.error("Failed to load URL:", err);
   });
 
-  // Eventos de carga para debugging
   mainWindow.webContents.on('did-start-loading', () => {
     log.info("🔄 Started loading...");
   });
@@ -622,7 +671,6 @@ function createMainWindow() {
       validatedURL
     });
     
-    // Abrir DevTools automáticamente cuando hay error
     if (!mainWindow.webContents.isDevToolsOpened()) {
       mainWindow.webContents.openDevTools();
     }
@@ -636,19 +684,16 @@ function createMainWindow() {
     log.info('✅ DOM is ready');
   });
 
-  // Capturar errores de JavaScript
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    if (level === 2 || level === 3) { // Warning o Error
+    if (level === 2 || level === 3) {
       log.error(`[Renderer] ${message} (${sourceId}:${line})`);
     }
   });
 
-  // En desarrollo, abrir DevTools siempre
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
   
-  // Atajo para abrir DevTools en producción: Ctrl+Shift+I
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.control && input.shift && input.key.toLowerCase() === 'i') {
       if (mainWindow.webContents.isDevToolsOpened()) {
@@ -667,7 +712,7 @@ function createMainWindow() {
   return mainWindow;
 }
 
-// ============= INIT =============
+// ============= INIT (OPCIÓN 3 APLICADA) =============
 
 async function initializeApp() {
   let splash;
@@ -676,56 +721,43 @@ async function initializeApp() {
     splash = createSplashWindow();
     log.info("🚀 Initializing...");
 
-    // Inicializar base de datos ANTES de iniciar el backend
     await initializeDatabase();
-
     await startBackend();
     await waitForBackend();
 
     const mainWin = createMainWindow();
 
-    // Timeout de seguridad para mostrar la ventana
-    const showWindowTimeout = setTimeout(() => {
-      log.warn("Window show timeout - forcing display");
-      if (splash && !splash.isDestroyed()) splash.close();
-      mainWin.show();
-    }, 10000); // 10 segundos máximo
+    // OPCIÓN 3: Cerrar splash y mostrar ventana después de 1-2 segundos
+    setTimeout(() => {
+      log.info("Closing splash and showing main window");
+      
+      if (splash && !splash.isDestroyed()) {
+        splash.close();
+        log.info("✅ Splash closed");
+      }
+      
+      if (!mainWin.isVisible()) {
+        mainWin.show();
+        log.info("✅ Main window shown");
+      }
+      
+      mainWin.maximize();
+      log.info("🎉 Window ready and visible!");
+    }, 2000); // ← 2 segundos máximo
 
-    mainWin.once("ready-to-show", () => {
-      clearTimeout(showWindowTimeout);
-      setTimeout(() => {
-        if (splash && !splash.isDestroyed()) splash.close();
+    // Fallback: Si después de 5 segundos sigue el splash, forzar cierre
+    setTimeout(() => {
+      if (splash && !splash.isDestroyed()) {
+        log.warn("Splash still open after 5s, forcing close");
+        splash.close();
+      }
+      
+      if (!mainWin.isVisible()) {
+        log.warn("Window still not visible after 5s, forcing show");
         mainWin.show();
         mainWin.maximize();
-        log.info("🎉 Window ready and visible!");
-      }, 1000);
-    });
-
-    // Fallback si ready-to-show no se dispara
-    mainWin.webContents.once('did-finish-load', () => {
-      log.info("Page loaded - ready to show");
-    });
-
-    mainWin.webContents.once('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-      log.error("Failed to load page:", {
-        errorCode,
-        errorDescription,
-        validatedURL
-      });
-      
-      clearTimeout(showWindowTimeout);
-      if (splash && !splash.isDestroyed()) splash.close();
-      
-      dialog.showErrorBox(
-        "Error al cargar la interfaz",
-        `No se pudo cargar la aplicación:\n\n` +
-        `Código: ${errorCode}\n` +
-        `Descripción: ${errorDescription}\n\n` +
-        `URL: ${validatedURL}`
-      );
-      
-      app.quit();
-    });
+      }
+    }, 5000); // ← Fallback a los 5 segundos
 
     if (app.isPackaged && isInstalled) {
       setupAutoUpdater();
@@ -736,11 +768,9 @@ async function initializeApp() {
     
     if (splash && !splash.isDestroyed()) splash.close();
     
-    const errorMessage = error.message || 'Error desconocido';
-    
     dialog.showErrorBox(
       "Error al iniciar",
-      `No se pudo iniciar la aplicación:\n\n${errorMessage}\n\n` +
+      `No se pudo iniciar la aplicación:\n\n${error.message}\n\n` +
       `Soluciones posibles:\n` +
       `• Verifica que tienes Node.js instalado (https://nodejs.org)\n` +
       `• Ejecuta como administrador\n` +
