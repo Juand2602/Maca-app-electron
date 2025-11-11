@@ -1,6 +1,6 @@
 {
   "name": "sistema-calzado",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Sistema de gestión para calzado Maca",
   "main": "electron/main.js",
   "scripts": {
@@ -15,9 +15,13 @@
     "build:backend": "cd backend && npm install && npx prisma generate",
     "electron:build": "npm run build && electron-builder",
     "test:build": "node scripts/test-build.js",
-    "release": "node scripts/create-release.js" 
+    "release": "node scripts/create-release.js"
   },
-  "keywords": ["electron", "calzado", "gestión"],
+  "keywords": [
+    "electron",
+    "calzado",
+    "gestión"
+  ],
   "author": "Juan Diego Sepulveda Herrera",
   "license": "ISC",
   "dependencies": {
@@ -49,14 +53,16 @@
       "!node_modules/*.d.ts",
       "!node_modules/.bin",
       "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
-      "!database/**/*",             
-      "!backend/database/**/*" 
+      "!database/**/*",
+      "!backend/database/**/*"
     ],
     "extraResources": [
       {
         "from": "node-portable",
         "to": "node",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "backend",
@@ -86,7 +92,9 @@
       "repo": "Maca-app-electron"
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "resources/icon.ico"
     },
     "nsis": {
@@ -100,12 +108,16 @@
       "runAfterFinish": true
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "resources/icon.icns",
       "category": "public.app-category.business"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "resources/icon.png",
       "category": "Office"
     }
