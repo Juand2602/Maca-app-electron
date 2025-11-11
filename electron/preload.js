@@ -1,15 +1,25 @@
 // electron/preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Exponer API segura al renderer
+// Exponer API segura al renderer (ESTILO BARBERÍA - SIMPLIFICADO)
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Backend
+  // Información de la plataforma
+  platform: process.platform,
+  isElectron: true,
+  
+  // ============================
+  // API DE BACKEND
+  // ============================
   getBackendUrl: () => ipcRenderer.invoke('get-backend-url'),
   checkBackendStatus: () => ipcRenderer.invoke('check-backend-status'),
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   
-  // Auto-actualización
-  isAutoUpdaterAvailable: () => ipcRenderer.invoke('is-auto-updater-available'),
+  // ============================
+  // API DE AUTO-UPDATER (SIMPLIFICADA)
+  // ============================
   
+  // Enviar comandos
   checkForUpdates: () => {
     ipcRenderer.send('check-for-updates');
   },
@@ -18,43 +28,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('download-update');
   },
   
-  restartApp: () => {
-    ipcRenderer.send('restart-app');
+  installUpdate: () => {
+    ipcRenderer.send('install-update');
   },
   
-  onUpdateAvailable: (callback) => {
-    const subscription = (event, info) => callback(info);
-    ipcRenderer.on('update-available', subscription);
-    return () => ipcRenderer.removeListener('update-available', subscription);
+  // Escuchar eventos (UN SOLO LISTENER UNIFICADO)
+  onUpdateStatus: (callback) => {
+    const subscription = (_event, data) => callback(data);
+    ipcRenderer.on('update-status', subscription);
+    
+    // Retornar función para remover el listener
+    return () => {
+      ipcRenderer.removeListener('update-status', subscription);
+    };
   },
   
-  onUpdateNotAvailable: (callback) => {
-    const subscription = (event, info) => callback(info);
-    ipcRenderer.on('update-not-available', subscription);
-    return () => ipcRenderer.removeListener('update-not-available', subscription);
-  },
-  
-  onUpdateDownloaded: (callback) => {
-    const subscription = (event, info) => callback(info);
-    ipcRenderer.on('update-downloaded', subscription);
-    return () => ipcRenderer.removeListener('update-downloaded', subscription);
-  },
-  
-  onDownloadProgress: (callback) => {
-    const subscription = (event, progress) => callback(progress);
-    ipcRenderer.on('download-progress', subscription);
-    return () => ipcRenderer.removeListener('download-progress', subscription);
-  },
-  
-  onUpdateError: (callback) => {
-    const subscription = (event, error) => callback(error);
-    ipcRenderer.on('update-error', subscription);
-    return () => ipcRenderer.removeListener('update-error', subscription);
-  },
-  
-  // Info de la app
-  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
-  platform: process.platform,
-  isElectron: true
+  // Limpiar listeners
+  removeUpdateListener: () => {
+    ipcRenderer.removeAllListeners('update-status');
+  }
 });
+
+// Tipos para TypeScript (opcional, pero útil para documentación)
+/**
+ * @typedef {Object} UpdateStatus
+ * @property {'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'} status
+ * @property {string} message
+ * @property {string} [version]
+ * @property {number} [percent]
+ * @property {number} [bytesPerSecond]
+ * @property {number} [transferred]
+ * @property {number} [total]
+ * @property {string} [error]
+ */

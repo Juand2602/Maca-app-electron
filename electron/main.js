@@ -14,79 +14,91 @@ const FRONTEND_PORT = 5173;
 log.transports.file.level = "info";
 log.info("App starting...");
 
-// ============= AUTO-UPDATER SETUP =============
+// ============= AUTO-UPDATER SETUP (SIMPLIFICADO - ESTILO BARBERÍA) =============
 
-let autoUpdater = null;
+const { autoUpdater } = require("electron-updater");
 
-// Detectar si la app está instalada
-function isAppInstalled() {
-  if (!app.isPackaged) {
-    log.info("Running in development mode");
-    return false;
+// Configuración simple y directa
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+// Logger
+autoUpdater.logger = {
+  info: (msg) => log.info('[AutoUpdater]', msg),
+  warn: (msg) => log.warn('[AutoUpdater]', msg),
+  error: (msg) => log.error('[AutoUpdater]', msg),
+  debug: (msg) => log.debug('[AutoUpdater]', msg),
+};
+
+// ============= EVENTOS AUTO-UPDATER (SIMPLIFICADOS) =============
+
+autoUpdater.on('checking-for-update', () => {
+  log.info('🔍 Verificando actualizaciones...');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'checking',
+      message: 'Buscando actualizaciones...'
+    });
   }
-  
-  const appPath = app.getAppPath().toLowerCase();
-  const exePath = app.getPath('exe').toLowerCase();
-  const exeDir = path.dirname(exePath);
-  
-  const isInProgramFiles = appPath.includes('program files') || 
-                           appPath.includes('programfiles') ||
-                           exePath.includes('program files') ||
-                           exePath.includes('programfiles');
-  
-  const isInAppData = appPath.includes('appdata\\local\\programs') ||
-                      exePath.includes('appdata\\local\\programs');
-  
-  const isInUnpacked = exePath.includes('win-unpacked') || appPath.includes('win-unpacked');
-  
-  const uninstallPath = path.join(exeDir, 'Uninstall Sistema Calzado.exe');
-  const hasUninstaller = fs.existsSync(uninstallPath);
-  
-  const markerPath = path.join(exeDir, '.installed');
-  const hasMarker = fs.existsSync(markerPath);
-  
-  const hasAsar = fs.existsSync(path.join(exeDir, 'resources', 'app.asar'));
-  
-  const installed = (hasUninstaller || hasMarker || hasAsar) && !isInUnpacked;
-  
-  log.info('='.repeat(60));
-  log.info('INSTALLATION DETECTION');
-  log.info('='.repeat(60));
-  log.info('App path:', appPath);
-  log.info('Exe path:', exePath);
-  log.info('Exe directory:', exeDir);
-  log.info('─'.repeat(60));
-  log.info('Uninstaller path:', uninstallPath);
-  log.info('Has uninstaller:', hasUninstaller);
-  log.info('Marker path:', markerPath);
-  log.info('Has marker:', hasMarker);
-  log.info('Has ASAR:', hasAsar);
-  log.info('─'.repeat(60));
-  log.info('Is in Program Files:', isInProgramFiles);
-  log.info('Is in AppData:', isInAppData);
-  log.info('Is in win-unpacked:', isInUnpacked);
-  log.info('─'.repeat(60));
-  log.info('🎯 IS INSTALLED:', installed);
-  log.info('='.repeat(60));
-  
-  return installed;
-}
+});
 
-const isInstalled = isAppInstalled();
-
-// Cargar auto-updater solo si está instalada
-if (isInstalled) {
-  try {
-    autoUpdater = require("electron-updater").autoUpdater;
-    autoUpdater.logger = log;
-    log.info("✅ Auto-updater loaded successfully");
-  } catch (e) {
-    log.error("❌ Failed to load electron-updater:", e.message);
-    log.error("Stack:", e.stack);
+autoUpdater.on('update-available', (info) => {
+  log.info('✅ Actualización disponible:', info.version);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'available',
+      message: `Nueva versión ${info.version} disponible`,
+      version: info.version
+    });
   }
-} else {
-  log.warn("⚠️ Running in portable/dev mode - auto-updater disabled");
-}
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('ℹ️ No hay actualizaciones disponibles');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'not-available',
+      message: 'La aplicación está actualizada'
+    });
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const message = `Descargando: ${Math.round(progressObj.percent)}%`;
+  log.info(message);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'downloading',
+      message,
+      percent: progressObj.percent,
+      bytesPerSecond: progressObj.bytesPerSecond,
+      transferred: progressObj.transferred,
+      total: progressObj.total
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info('✅ Actualización descargada:', info.version);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'downloaded',
+      message: 'Actualización lista para instalar',
+      version: info.version
+    });
+  }
+});
+
+autoUpdater.on('error', (error) => {
+  log.error('❌ Error en auto-updater:', error);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'error',
+      message: 'Error al verificar actualizaciones',
+      error: error.message
+    });
+  }
+});
 
 // ============= FUNCIONES AUXILIARES =============
 
@@ -266,7 +278,7 @@ async function initializeDatabase() {
     const migrateCmd = `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`;
     
     try {
-      const output = execSync(migrateCmd, {
+      execSync(migrateCmd, {
         cwd: backendDir,
         env: env,
         encoding: 'utf8',
@@ -490,70 +502,6 @@ function stopBackend() {
   }
 }
 
-// ============= AUTO-UPDATER =============
-
-function setupAutoUpdater() {
-  if (!autoUpdater) {
-    log.warn("Auto-updater not available");
-    return;
-  }
-  
-  log.info("Configuring auto-updater...");
-  
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on("checking-for-update", () => {
-    log.info("Checking for updates...");
-  });
-
-  autoUpdater.on("update-available", (info) => {
-    log.info("Update available:", info);
-    if (mainWindow) {
-      mainWindow.webContents.send("update-available", info);
-    }
-  });
-
-  autoUpdater.on("update-not-available", (info) => {
-    log.info("No updates available:", info);
-    if (mainWindow) {
-      mainWindow.webContents.send("update-not-available", info);
-    }
-  });
-
-  autoUpdater.on("error", (err) => {
-    log.error("Auto-updater error:", err);
-    if (mainWindow) {
-      mainWindow.webContents.send("update-error", {
-        message: err.message,
-        stack: err.stack
-      });
-    }
-  });
-
-  autoUpdater.on("download-progress", (progressObj) => {
-    const message = `Downloaded ${progressObj.percent.toFixed(2)}%`;
-    log.info(message);
-    if (mainWindow) {
-      mainWindow.webContents.send("download-progress", progressObj);
-    }
-  });
-
-  autoUpdater.on("update-downloaded", (info) => {
-    log.info("Update downloaded:", info);
-    if (mainWindow) {
-      mainWindow.webContents.send("update-downloaded", info);
-    }
-  });
-
-  setTimeout(() => {
-    log.info("Starting automatic update check...");
-    autoUpdater.checkForUpdates().catch(err => {
-      log.error("Update check failed:", err);
-    });
-  }, 10000);
-}
-
 // ============= WINDOWS =============
 
 function createSplashWindow() {
@@ -621,7 +569,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: true,  // ← CAMBIADO A true (OPCIÓN 3)
+    show: true,
     backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
@@ -712,7 +660,7 @@ function createMainWindow() {
   return mainWindow;
 }
 
-// ============= INIT (OPCIÓN 3 APLICADA) =============
+// ============= INIT =============
 
 async function initializeApp() {
   let splash;
@@ -727,7 +675,6 @@ async function initializeApp() {
 
     const mainWin = createMainWindow();
 
-    // OPCIÓN 3: Cerrar splash y mostrar ventana después de 1-2 segundos
     setTimeout(() => {
       log.info("Closing splash and showing main window");
       
@@ -743,9 +690,8 @@ async function initializeApp() {
       
       mainWin.maximize();
       log.info("🎉 Window ready and visible!");
-    }, 2000); // ← 2 segundos máximo
+    }, 2000);
 
-    // Fallback: Si después de 5 segundos sigue el splash, forzar cierre
     setTimeout(() => {
       if (splash && !splash.isDestroyed()) {
         log.warn("Splash still open after 5s, forcing close");
@@ -757,10 +703,14 @@ async function initializeApp() {
         mainWin.show();
         mainWin.maximize();
       }
-    }, 5000); // ← Fallback a los 5 segundos
+    }, 5000);
 
-    if (app.isPackaged && isInstalled) {
-      setupAutoUpdater();
+    // VERIFICAR ACTUALIZACIONES (Solo en producción)
+    if (!isDev) {
+      log.info('🚀 Programando verificación de actualizaciones...');
+      setTimeout(() => {
+        autoUpdater.checkForUpdates();
+      }, 3000);
     }
     
   } catch (error) {
@@ -784,6 +734,8 @@ async function initializeApp() {
 
 // ============= EVENTS =============
 
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
 app.whenReady().then(initializeApp);
 
 app.on("window-all-closed", () => {
@@ -803,17 +755,6 @@ ipcMain.handle("is-electron", () => {
   return true;
 });
 
-ipcMain.handle("is-auto-updater-available", () => {
-  const available = autoUpdater !== null && app.isPackaged && isInstalled;
-  log.info("Auto-updater availability check:", {
-    autoUpdaterExists: autoUpdater !== null,
-    isPackaged: app.isPackaged,
-    isInstalled: isInstalled,
-    result: available
-  });
-  return available;
-});
-
 ipcMain.handle("check-backend-status", async () => {
   try {
     const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { timeout: 2000 });
@@ -831,80 +772,25 @@ ipcMain.handle("get-app-version", () => {
   return app.getVersion();
 });
 
-// ============= IPC EVENTS =============
+// ============= IPC EVENTS (ESTILO BARBERÍA) =============
 
-ipcMain.on("check-for-updates", () => {
-  log.info("Manual update check requested");
-  
-  if (!app.isPackaged) {
-    log.warn("Cannot check for updates in development mode");
-    if (mainWindow) {
-      mainWindow.webContents.send("update-error", {
-        message: "Las actualizaciones no están disponibles en modo desarrollo"
-      });
-    }
-    return;
-  }
-  
-  if (!isInstalled) {
-    log.warn("Cannot check for updates in portable mode");
-    if (mainWindow) {
-      mainWindow.webContents.send("update-error", {
-        message: "Las actualizaciones no están disponibles en modo portable. Instala la aplicación."
-      });
-    }
-    return;
-  }
-  
-  if (!autoUpdater) {
-    log.error("Auto-updater not loaded");
-    if (mainWindow) {
-      mainWindow.webContents.send("update-error", {
-        message: "El sistema de actualizaciones no está disponible"
-      });
-    }
-    return;
-  }
-  
-  autoUpdater.checkForUpdates()
-    .then(() => log.info("Update check initiated"))
-    .catch(err => {
-      log.error("Update check failed:", err);
-      if (mainWindow) {
-        mainWindow.webContents.send("update-error", {
-          message: err.message || "Error al verificar actualizaciones"
-        });
-      }
-    });
-});
-
-ipcMain.on("download-update", () => {
-  log.info("Manual update download requested");
-  
-  if (autoUpdater && app.isPackaged && isInstalled) {
-    autoUpdater.downloadUpdate()
-      .then(() => log.info("Update download initiated"))
-      .catch(err => {
-        log.error("Update download failed:", err);
-        if (mainWindow) {
-          mainWindow.webContents.send("update-error", {
-            message: err.message || "Error al descargar actualización"
-          });
-        }
-      });
+ipcMain.on('check-for-updates', () => {
+  if (!isDev) {
+    log.info('🔍 Verificando actualizaciones...');
+    autoUpdater.checkForUpdates();
   } else {
-    log.warn("Cannot download update - auto-updater not available");
+    log.warn('Actualizaciones no disponibles en desarrollo');
   }
 });
 
-ipcMain.on("restart-app", () => {
-  log.info("App restart requested");
-  if (autoUpdater && app.isPackaged && isInstalled) {
-    autoUpdater.quitAndInstall(false, true);
-  } else {
-    app.relaunch();
-    app.exit(0);
-  }
+ipcMain.on('download-update', () => {
+  log.info('⬇️ Descargando actualización...');
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.on('install-update', () => {
+  log.info('🔄 Instalando actualización...');
+  autoUpdater.quitAndInstall(false, true);
 });
 
 // ============= ERROR HANDLING =============
