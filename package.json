@@ -40,6 +40,7 @@
   "build": {
     "appId": "com.calzado.sistema",
     "productName": "Sistema Calzado",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "directories": {
       "output": "dist-electron"
     },
@@ -95,7 +96,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "resources/icon.ico"
+      "icon": "resources/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -105,7 +107,8 @@
       "deleteAppDataOnUninstall": false,
       "perMachine": false,
       "allowElevation": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [
