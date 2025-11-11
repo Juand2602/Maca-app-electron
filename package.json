@@ -15,7 +15,7 @@
     "build:backend": "cd backend && npm install && npx prisma generate",
     "electron:build": "npm run build && electron-builder",
     "test:build": "node scripts/test-build.js",
-    "release": "node scripts/release.js"
+    "release": "node scripts/create-release.js" 
   },
   "keywords": ["electron", "calzado", "gestión"],
   "author": "Juan Diego Sepulveda Herrera",
