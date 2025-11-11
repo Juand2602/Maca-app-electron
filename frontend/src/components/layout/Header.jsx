@@ -28,7 +28,7 @@ const Header = ({ onMenuClick }) => {
           {/* Page title and breadcrumb area */}
           <div className="ml-4 lg:ml-0">
             <h1 className="text-lg font-semibold text-gray-900">
-              Sistema Administrativo de Calzado MACA
+              Sistema Administrativo de Calzado MACA AUTO-UPADTER
             </h1>
             <p className="text-sm text-gray-500">Bodega: {getWarehouse()}</p>
           </div>
