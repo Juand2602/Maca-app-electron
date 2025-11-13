@@ -1,9 +1,7 @@
-// src/pages/Auth/Login.jsx
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom' 
 import { useForm } from 'react-hook-form'
-import { Eye, EyeOff, User, Lock, Building2 } from 'lucide-react'
+import { Eye, EyeOff, User, Lock, Warehouse } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import toast from 'react-hot-toast'
 
@@ -21,12 +19,11 @@ const Login = () => {
     defaultValues: {
       username: '',
       password: '',
-      warehouse: 'San Francisco', 
+      warehouse: 'San Francisco',
     }
   })
 
   const onSubmit = async (data) => {
-    // Enviar credenciales al backend
     const { username, password, warehouse } = data
     
     const result = await login({ username, password, warehouse })
@@ -34,19 +31,15 @@ const Login = () => {
     if (result.success) {
       toast.success('¡Inicio de sesión exitoso!')
       navigate('/dashboard') 
-    } else {
-      // El error ya se muestra en el componente, no necesitamos toast aquí
-      // toast.error ya fue mostrado por el interceptor de axios
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-primary-600 rounded-full flex items-center justify-center shadow-lg">
-            <Building2 className="h-8 w-8 text-white" />
+            <Warehouse className="h-8 w-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             Sistema Administrativo
@@ -56,11 +49,9 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Form */}
         <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-200">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             
-            {/* Username */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                 Usuario
@@ -88,7 +79,6 @@ const Login = () => {
               )}
             </div>
 
-            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Contraseña
@@ -127,28 +117,31 @@ const Login = () => {
               )}
             </div>
 
-            {/* Bodega - Solo Lectura */}
+            {/* Bodega - Selector */}
             <div>
               <label htmlFor="warehouse" className="block text-sm font-medium text-gray-700 mb-2">
                 Bodega
               </label>
-              <input
-                {...register('warehouse')}
-                type="text"
-                value="San Francisco"
-                readOnly
-                className="input input-disabled bg-gray-100 text-gray-500 cursor-not-allowed"
-              />
+              <select
+                {...register('warehouse', {
+                  required: 'La bodega es requerida'
+                })}
+                className={`input ${errors.warehouse ? 'input-error' : ''}`}
+              >
+                <option value="San Francisco">San Francisco</option>
+                <option value="Centro">Centro</option>
+              </select>
+              {errors.warehouse && (
+                <p className="mt-1 text-sm text-danger-600">{errors.warehouse.message}</p>
+              )}
             </div>
 
-            {/* Error message */}
             {error && (
               <div className="bg-danger-50 border border-danger-200 rounded-md p-3">
                 <p className="text-sm text-danger-700">{error}</p>
               </div>
             )}
 
-            {/* Submit button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -166,7 +159,6 @@ const Login = () => {
           </form>
         </div>
 
-        {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
             Sistema de Gestión para Empresa de Calzado v1.0.0

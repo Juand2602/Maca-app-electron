@@ -1,20 +1,16 @@
-// backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Configuración JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'tu-secret-key-super-seguro-cambiame-en-produccion';
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '24h';
 
 /**
  * Middleware de autenticación JWT
- * Verifica el token y agrega el usuario al request
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Obtener token del header
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -24,9 +20,8 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    const token = authHeader.substring(7); // Remover "Bearer "
+    const token = authHeader.substring(7);
     
-    // Verificar token
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
@@ -43,7 +38,6 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Buscar usuario en base de datos
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
@@ -52,6 +46,7 @@ const authenticate = async (req, res, next) => {
         email: true,
         fullName: true,
         role: true,
+        warehouse: true, // NUEVO: Incluir bodega
         isActive: true,
         employee: {
           select: {
@@ -76,8 +71,9 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Agregar usuario al request
+    // Agregar usuario con bodega al request
     req.user = user;
+    req.warehouse = user.warehouse || 'San Francisco'; // NUEVO: Agregar bodega al request
     next();
     
   } catch (error) {
@@ -91,9 +87,6 @@ const authenticate = async (req, res, next) => {
 
 /**
  * Middleware de autorización por rol
- * Verifica que el usuario tenga uno de los roles permitidos
- * 
- * Uso: authorize('ADMIN') o authorize('ADMIN', 'MANAGER')
  */
 const authorize = (...roles) => {
   return (req, res, next) => {
@@ -125,7 +118,8 @@ const generateToken = (user) => {
     id: user.id,
     username: user.username,
     email: user.email,
-    role: user.role
+    role: user.role,
+    warehouse: user.warehouse || 'San Francisco' // NUEVO: Incluir bodega en token
   };
   
   return jwt.sign(payload, JWT_SECRET, { 
@@ -134,8 +128,17 @@ const generateToken = (user) => {
 };
 
 /**
- * Generar token desde username (para crear usuarios)
+ * Middleware para filtrar por bodega
+ * NUEVO: Agregar filtro de bodega a las consultas
  */
+const filterByWarehouse = (req, res, next) => {
+  // Agregar el filtro de bodega al query params
+  if (req.warehouse) {
+    req.warehouseFilter = { warehouse: req.warehouse };
+  }
+  next();
+};
+
 const generateTokenFromUsername = async (username) => {
   const user = await prisma.user.findUnique({
     where: { username },
@@ -143,7 +146,8 @@ const generateTokenFromUsername = async (username) => {
       id: true,
       username: true,
       email: true,
-      role: true
+      role: true,
+      warehouse: true // NUEVO: Incluir bodega
     }
   });
   
@@ -154,9 +158,6 @@ const generateTokenFromUsername = async (username) => {
   return generateToken(user);
 };
 
-/**
- * Verificar token sin middleware (útil para otros servicios)
- */
 const verifyToken = (token) => {
   try {
     return jwt.verify(token, JWT_SECRET);
@@ -165,23 +166,14 @@ const verifyToken = (token) => {
   }
 };
 
-/**
- * Decodificar token sin verificar (útil para debugging)
- */
 const decodeToken = (token) => {
   return jwt.decode(token);
 };
 
-/**
- * Verificar si el usuario actual es administrador
- */
 const isAdmin = (req) => {
   return req.user && req.user.role === 'ADMIN';
 };
 
-/**
- * Middleware opcional: permite acceso sin autenticación pero agrega user si hay token
- */
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -198,12 +190,14 @@ const optionalAuth = async (req, res, next) => {
           email: true,
           fullName: true,
           role: true,
+          warehouse: true, // NUEVO: Incluir bodega
           isActive: true
         }
       });
       
       if (user && user.isActive) {
         req.user = user;
+        req.warehouse = user.warehouse || 'San Francisco'; // NUEVO
       }
     }
   } catch (error) {
@@ -222,6 +216,7 @@ module.exports = {
   decodeToken,
   isAdmin,
   optionalAuth,
+  filterByWarehouse, // NUEVO: Exportar middleware de filtro
   JWT_SECRET,
   JWT_EXPIRATION
 };

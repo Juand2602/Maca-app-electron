@@ -18,7 +18,8 @@ class SaleController {
       }
       
       const userId = req.user.id;
-      const sale = await saleService.createSale(req.body, userId);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sale = await saleService.createSale(req.body, userId, warehouse);
       
       res.status(201).json(sale);
       
@@ -40,12 +41,13 @@ class SaleController {
   async getSaleById(req, res, next) {
     try {
       const { id } = req.params;
-      const sale = await saleService.getSaleById(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sale = await saleService.getSaleById(id, warehouse);
       
       res.json(sale);
       
     } catch (error) {
-      if (error.message === 'Venta no encontrada') {
+      if (error.message === 'Venta no encontrada en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -58,12 +60,13 @@ class SaleController {
   async getSaleBySaleNumber(req, res, next) {
     try {
       const { saleNumber } = req.params;
-      const sale = await saleService.getSaleBySaleNumber(saleNumber);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sale = await saleService.getSaleBySaleNumber(saleNumber, warehouse);
       
       res.json(sale);
       
     } catch (error) {
-      if (error.message === 'Venta no encontrada') {
+      if (error.message === 'Venta no encontrada en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -75,7 +78,8 @@ class SaleController {
    */
   async getAllSales(req, res, next) {
     try {
-      const sales = await saleService.getAllSales();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sales = await saleService.getAllSales(warehouse);
       res.json(sales);
     } catch (error) {
       next(error);
@@ -89,8 +93,9 @@ class SaleController {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
       
-      const result = await saleService.getAllSalesPaginated(page, limit);
+      const result = await saleService.getAllSalesPaginated(page, limit, warehouse);
       
       res.json(result);
     } catch (error) {
@@ -111,7 +116,8 @@ class SaleController {
         });
       }
       
-      const sales = await saleService.getSalesByDateRange(startDate, endDate);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sales = await saleService.getSalesByDateRange(startDate, endDate, warehouse);
       res.json(sales);
       
     } catch (error) {
@@ -132,7 +138,8 @@ class SaleController {
         });
       }
       
-      const sales = await saleService.searchSales(q.trim());
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const sales = await saleService.searchSales(q.trim(), warehouse);
       res.json(sales);
       
     } catch (error) {
@@ -153,9 +160,11 @@ class SaleController {
         });
       }
       
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      
       const [totalSales, count] = await Promise.all([
-        saleService.getTotalSalesByDateRange(startDate, endDate),
-        saleService.countSalesByDateRange(startDate, endDate)
+        saleService.getTotalSalesByDateRange(startDate, endDate, warehouse),
+        saleService.countSalesByDateRange(startDate, endDate, warehouse)
       ]);
       
       res.json({
@@ -176,12 +185,13 @@ class SaleController {
   async cancelSale(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await saleService.cancelSale(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await saleService.cancelSale(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Venta no encontrada' ||
+      if (error.message === 'Venta no encontrada en esta bodega' ||
           error.message === 'La venta ya está cancelada') {
         return res.status(400).json({ error: error.message });
       }

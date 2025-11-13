@@ -18,12 +18,13 @@ class ProductController {
         });
       }
       
-      const product = await productService.createProduct(req.body);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const product = await productService.createProduct(req.body, warehouse);
       
       res.status(201).json(product);
       
     } catch (error) {
-      if (error.message === 'El código del producto ya existe') {
+      if (error.message.includes('ya existe')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -45,15 +46,16 @@ class ProductController {
       }
       
       const { id } = req.params;
-      const product = await productService.updateProduct(id, req.body);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const product = await productService.updateProduct(id, req.body, warehouse);
       
       res.json(product);
       
     } catch (error) {
-      if (error.message === 'Producto no encontrado') {
+      if (error.message === 'Producto no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
-      if (error.message === 'El código del producto ya existe') {
+      if (error.message.includes('ya existe')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -66,12 +68,13 @@ class ProductController {
   async getProductById(req, res, next) {
     try {
       const { id } = req.params;
-      const product = await productService.getProductById(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const product = await productService.getProductById(id, warehouse);
       
       res.json(product);
       
     } catch (error) {
-      if (error.message === 'Producto no encontrado') {
+      if (error.message === 'Producto no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -83,7 +86,8 @@ class ProductController {
    */
   async getAllProducts(req, res, next) {
     try {
-      const products = await productService.getAllProducts();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const products = await productService.getAllProducts(warehouse);
       res.json(products);
     } catch (error) {
       next(error);
@@ -97,8 +101,9 @@ class ProductController {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
       
-      const result = await productService.getAllProductsPaginated(page, limit);
+      const result = await productService.getAllProductsPaginated(page, limit, warehouse);
       
       res.json(result);
     } catch (error) {
@@ -111,7 +116,8 @@ class ProductController {
    */
   async getActiveProducts(req, res, next) {
     try {
-      const products = await productService.getActiveProducts();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const products = await productService.getActiveProducts(warehouse);
       res.json(products);
     } catch (error) {
       next(error);
@@ -131,7 +137,8 @@ class ProductController {
         });
       }
       
-      const products = await productService.searchProducts(q.trim());
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const products = await productService.searchProducts(q.trim(), warehouse);
       res.json(products);
       
     } catch (error) {
@@ -144,7 +151,8 @@ class ProductController {
    */
   async getLowStockProducts(req, res, next) {
     try {
-      const products = await productService.getLowStockProducts();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const products = await productService.getLowStockProducts(warehouse);
       res.json(products);
     } catch (error) {
       next(error);
@@ -156,7 +164,8 @@ class ProductController {
    */
   async getAllCategories(req, res, next) {
     try {
-      const categories = await productService.getAllCategories();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const categories = await productService.getAllCategories(warehouse);
       res.json(categories);
     } catch (error) {
       next(error);
@@ -168,7 +177,8 @@ class ProductController {
    */
   async getAllBrands(req, res, next) {
     try {
-      const brands = await productService.getAllBrands();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const brands = await productService.getAllBrands(warehouse);
       res.json(brands);
     } catch (error) {
       next(error);
@@ -180,7 +190,8 @@ class ProductController {
    */
   async getAllMaterials(req, res, next) {
     try {
-      const materials = await productService.getAllMaterials();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const materials = await productService.getAllMaterials(warehouse);
       res.json(materials);
     } catch (error) {
       next(error);
@@ -192,7 +203,8 @@ class ProductController {
    */
   async getAllColors(req, res, next) {
     try {
-      const colors = await productService.getAllColors();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const colors = await productService.getAllColors(warehouse);
       res.json(colors);
     } catch (error) {
       next(error);
@@ -206,12 +218,13 @@ class ProductController {
   async deleteProduct(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await productService.deleteProduct(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await productService.deleteProduct(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Producto no encontrado') {
+      if (error.message === 'Producto no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -225,12 +238,13 @@ class ProductController {
   async activateProduct(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await productService.activateProduct(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await productService.activateProduct(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Producto no encontrado') {
+      if (error.message === 'Producto no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);

@@ -5,14 +5,12 @@ import { authService } from '../services/authService'
 export const useAuthStore = create(
   persist(
     (set, get) => ({
-      // Estado
       user: null,
       token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
 
-      // Acciones
       login: async (credentials) => {
         set({ isLoading: true, error: null })
         
@@ -71,13 +69,11 @@ export const useAuthStore = create(
             try {
               const { token, expiresAt } = JSON.parse(tokenData)
               
-              // Verificar si el token ha expirado
               if (new Date().getTime() >= expiresAt) {
                 await get().logout()
                 return
               }
               
-              // Verificar token con el servidor
               await authService.verifyToken()
               
               set({
@@ -110,7 +106,6 @@ export const useAuthStore = create(
         set({ error: null })
       },
 
-      // Getters
       isAdmin: () => {
         const { user } = get()
         return user?.role === 'ADMIN'
@@ -122,7 +117,7 @@ export const useAuthStore = create(
       },
     }),
     {
-      name: 'auth-storage', // nombre de la clave en el localStorage
+      name: 'auth-storage',
       partialize: (state) => ({ 
         user: state.user, 
         token: state.token, 
@@ -132,7 +127,6 @@ export const useAuthStore = create(
   )
 )
 
-// Exportar funciones de utilidad para usar fuera del store
 export const isAdmin = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   return user?.role === 'ADMIN'

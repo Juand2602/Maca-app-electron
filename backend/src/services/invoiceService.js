@@ -6,33 +6,37 @@ class InvoiceService {
   /**
    * Crear factura
    */
-  async createInvoice(data, userId) {
-    // Verificar que el proveedor existe
-    const provider = await prisma.provider.findUnique({
-      where: { id: parseInt(data.providerId) }
+  async createInvoice(data, userId, warehouse) {
+    // Verificar que el proveedor existe EN LA MISMA BODEGA
+    const provider = await prisma.provider.findFirst({
+      where: { 
+        id: parseInt(data.providerId),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      }
     });
     
     if (!provider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
-    // Verificar número de factura único
-    const existingInvoice = await prisma.invoice.findUnique({
-      where: { invoiceNumber: data.invoiceNumber }
+    // Verificar número de factura único EN LA MISMA BODEGA
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { 
+        invoiceNumber: data.invoiceNumber,
+        warehouse: warehouse // NUEVO: Verificar en la misma bodega
+      }
     });
     
     if (existingInvoice) {
-      throw new Error('El número de factura ya existe');
+      throw new Error('El número de factura ya existe en esta bodega');
     }
     
-    // Calcular balance inicial
     const subtotal = parseFloat(data.subtotal);
     const tax = data.tax ? parseFloat(data.tax) : 0;
     const discount = data.discount ? parseFloat(data.discount) : 0;
     const total = parseFloat(data.total);
     const balance = total;
     
-    // Determinar estado inicial
     const status = this.determineStatus(0, balance, new Date(data.dueDate));
     
     // Crear factura
@@ -47,6 +51,7 @@ class InvoiceService {
         tax,
         discount,
         total,
+        warehouse: warehouse, // NUEVO: Asignar bodega
         status,
         notes: data.notes
       },
@@ -75,10 +80,13 @@ class InvoiceService {
   /**
    * Agregar pago a factura
    */
-  async addPayment(data, userId) {
-    // Verificar que la factura existe
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: parseInt(data.invoiceId) },
+  async addPayment(data, userId, warehouse) {
+    // Verificar que la factura existe EN LA MISMA BODEGA
+    const invoice = await prisma.invoice.findFirst({
+      where: { 
+        id: parseInt(data.invoiceId),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      },
       include: {
         payments: true,
         provider: true
@@ -86,14 +94,12 @@ class InvoiceService {
     });
     
     if (!invoice) {
-      throw new Error('Factura no encontrada');
+      throw new Error('Factura no encontrada en esta bodega');
     }
     
-    // Calcular balance actual
     const paidAmount = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
     const currentBalance = invoice.total - paidAmount;
     
-    // Validar que el pago no exceda el balance
     const paymentAmount = parseFloat(data.amount);
     
     if (paymentAmount > currentBalance) {
@@ -102,12 +108,9 @@ class InvoiceService {
       );
     }
     
-    // Generar número de pago
     const paymentNumber = await this.generatePaymentNumber();
     
-    // Crear pago y actualizar factura en transacción
     const result = await prisma.$transaction(async (tx) => {
-      // Crear pago
       const payment = await tx.invoicePayment.create({
         data: {
           invoiceId: parseInt(data.invoiceId),
@@ -119,18 +122,15 @@ class InvoiceService {
         }
       });
       
-      // Calcular nuevo balance
       const newPaidAmount = paidAmount + paymentAmount;
       const newBalance = invoice.total - newPaidAmount;
       
-      // Determinar nuevo estado
       const newStatus = this.determineStatus(
         newPaidAmount,
         newBalance,
         invoice.dueDate
       );
       
-      // Actualizar factura
       const updatedInvoice = await tx.invoice.update({
         where: { id: parseInt(data.invoiceId) },
         data: {
@@ -167,9 +167,12 @@ class InvoiceService {
   /**
    * Obtener factura por ID
    */
-  async getInvoiceById(id) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: parseInt(id) },
+  async getInvoiceById(id, warehouse) {
+    const invoice = await prisma.invoice.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         provider: {
           select: {
@@ -192,7 +195,7 @@ class InvoiceService {
     });
     
     if (!invoice) {
-      throw new Error('Factura no encontrada');
+      throw new Error('Factura no encontrada en esta bodega');
     }
     
     return this.mapToResponse(invoice);
@@ -201,9 +204,12 @@ class InvoiceService {
   /**
    * Obtener factura por número
    */
-  async getInvoiceByNumber(invoiceNumber) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { invoiceNumber },
+  async getInvoiceByNumber(invoiceNumber, warehouse) {
+    const invoice = await prisma.invoice.findFirst({
+      where: { 
+        invoiceNumber,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         provider: {
           select: {
@@ -226,7 +232,7 @@ class InvoiceService {
     });
     
     if (!invoice) {
-      throw new Error('Factura no encontrada');
+      throw new Error('Factura no encontrada en esta bodega');
     }
     
     return this.mapToResponse(invoice);
@@ -235,8 +241,9 @@ class InvoiceService {
   /**
    * Listar todas las facturas
    */
-  async getAllInvoices() {
+  async getAllInvoices(warehouse) {
     const invoices = await prisma.invoice.findMany({
+      where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
       include: {
         provider: {
           select: {
@@ -258,11 +265,12 @@ class InvoiceService {
   /**
    * Listar facturas con paginación
    */
-  async getAllInvoicesPaginated(page = 1, limit = 10) {
+  async getAllInvoicesPaginated(page = 1, limit = 10, warehouse) {
     const skip = (page - 1) * limit;
     
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
+        where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
         skip,
         take: limit,
         include: {
@@ -279,7 +287,9 @@ class InvoiceService {
           invoiceDate: 'desc'
         }
       }),
-      prisma.invoice.count()
+      prisma.invoice.count({
+        where: { warehouse: warehouse } // NUEVO: Contar solo de esta bodega
+      })
     ]);
     
     return {
@@ -296,9 +306,12 @@ class InvoiceService {
   /**
    * Facturas por estado
    */
-  async getInvoicesByStatus(status) {
+  async getInvoicesByStatus(status, warehouse) {
     const invoices = await prisma.invoice.findMany({
-      where: { status },
+      where: { 
+        status,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         provider: {
           select: {
@@ -320,9 +333,12 @@ class InvoiceService {
   /**
    * Facturas por proveedor
    */
-  async getInvoicesByProvider(providerId) {
+  async getInvoicesByProvider(providerId, warehouse) {
     const invoices = await prisma.invoice.findMany({
-      where: { providerId: parseInt(providerId) },
+      where: { 
+        providerId: parseInt(providerId),
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         provider: {
           select: {
@@ -344,11 +360,12 @@ class InvoiceService {
   /**
    * Facturas vencidas
    */
-  async getOverdueInvoices() {
+  async getOverdueInvoices(warehouse) {
     const today = new Date();
     
     const invoices = await prisma.invoice.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         dueDate: {
           lt: today
         },
@@ -377,9 +394,10 @@ class InvoiceService {
   /**
    * Facturas por rango de fechas
    */
-  async getInvoicesByDateRange(startDate, endDate) {
+  async getInvoicesByDateRange(startDate, endDate, warehouse) {
     const invoices = await prisma.invoice.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         invoiceDate: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -406,9 +424,12 @@ class InvoiceService {
   /**
    * Total de facturas por estado
    */
-  async getTotalByStatus(status) {
+  async getTotalByStatus(status, warehouse) {
     const result = await prisma.invoice.aggregate({
-      where: { status },
+      where: { 
+        status,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       _sum: {
         total: true
       }
@@ -420,9 +441,10 @@ class InvoiceService {
   /**
    * Balance pendiente total
    */
-  async getTotalPendingBalance() {
+  async getTotalPendingBalance(warehouse) {
     const invoices = await prisma.invoice.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         status: {
           notIn: ['PAID', 'CANCELLED']
         }
@@ -446,17 +468,19 @@ class InvoiceService {
   /**
    * Actualizar factura
    */
-  async updateInvoice(id, data) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: parseInt(id) },
+  async updateInvoice(id, data, warehouse) {
+    const invoice = await prisma.invoice.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      },
       include: { payments: true }
     });
     
     if (!invoice) {
-      throw new Error('Factura no encontrada');
+      throw new Error('Factura no encontrada en esta bodega');
     }
     
-    // Si tiene pagos, no permitir cambiar el total
     if (invoice.payments.length > 0 && data.total && parseFloat(data.total) !== invoice.total) {
       throw new Error('No se puede modificar el total de una factura con pagos registrados');
     }
@@ -490,14 +514,17 @@ class InvoiceService {
   /**
    * Cancelar factura
    */
-  async cancelInvoice(id) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: parseInt(id) },
+  async cancelInvoice(id, warehouse) {
+    const invoice = await prisma.invoice.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      },
       include: { payments: true }
     });
     
     if (!invoice) {
-      throw new Error('Factura no encontrada');
+      throw new Error('Factura no encontrada en esta bodega');
     }
     
     if (invoice.payments.length > 0) {
@@ -573,6 +600,7 @@ class InvoiceService {
       total: invoice.total,
       paidAmount,
       balance,
+      warehouse: invoice.warehouse, // NUEVO: Incluir bodega en respuesta
       status: invoice.status,
       notes: invoice.notes,
       createdAt: invoice.createdAt,

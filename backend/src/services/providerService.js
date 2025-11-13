@@ -6,14 +6,17 @@ class ProviderService {
   /**
    * Crear proveedor
    */
-  async createProvider(data) {
-    // Verificar documento único
-    const existingProvider = await prisma.provider.findUnique({
-      where: { document: data.document }
+  async createProvider(data, warehouse) {
+    // Verificar documento único EN LA MISMA BODEGA
+    const existingProvider = await prisma.provider.findFirst({
+      where: { 
+        document: data.document,
+        warehouse: warehouse // NUEVO: Verificar en la misma bodega
+      }
     });
     
     if (existingProvider) {
-      throw new Error('El documento del proveedor ya existe');
+      throw new Error('El documento del proveedor ya existe en esta bodega');
     }
     
     // Crear proveedor
@@ -31,6 +34,7 @@ class ProviderService {
         country: data.country,
         paymentTerms: data.paymentTerms,
         paymentDays: data.paymentDays ? parseInt(data.paymentDays) : null,
+        warehouse: warehouse, // NUEVO: Asignar bodega
         isActive: data.isActive !== undefined ? data.isActive : true,
         notes: data.notes
       }
@@ -42,26 +46,33 @@ class ProviderService {
   /**
    * Actualizar proveedor
    */
-  async updateProvider(id, data) {
+  async updateProvider(id, data, warehouse) {
     const providerId = parseInt(id);
     
-    // Verificar que existe el proveedor
-    const existingProvider = await prisma.provider.findUnique({
-      where: { id: providerId }
+    // Verificar que existe el proveedor EN LA MISMA BODEGA
+    const existingProvider = await prisma.provider.findFirst({
+      where: { 
+        id: providerId,
+        warehouse: warehouse // NUEVO: Verificar bodega
+      }
     });
     
     if (!existingProvider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
-    // Verificar documento único si cambió
+    // Verificar documento único si cambió EN LA MISMA BODEGA
     if (data.document && data.document !== existingProvider.document) {
-      const duplicateDocument = await prisma.provider.findUnique({
-        where: { document: data.document }
+      const duplicateDocument = await prisma.provider.findFirst({
+        where: { 
+          document: data.document,
+          warehouse: warehouse,
+          id: { not: providerId }
+        }
       });
       
       if (duplicateDocument) {
-        throw new Error('El documento del proveedor ya existe');
+        throw new Error('El documento del proveedor ya existe en esta bodega');
       }
     }
     
@@ -92,13 +103,16 @@ class ProviderService {
   /**
    * Obtener proveedor por ID
    */
-  async getProviderById(id) {
-    const provider = await prisma.provider.findUnique({
-      where: { id: parseInt(id) }
+  async getProviderById(id, warehouse) {
+    const provider = await prisma.provider.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      }
     });
     
     if (!provider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
     return this.mapToResponse(provider);
@@ -107,13 +121,16 @@ class ProviderService {
   /**
    * Obtener proveedor por documento
    */
-  async getProviderByDocument(document) {
-    const provider = await prisma.provider.findUnique({
-      where: { document }
+  async getProviderByDocument(document, warehouse) {
+    const provider = await prisma.provider.findFirst({
+      where: { 
+        document,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      }
     });
     
     if (!provider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
     return this.mapToResponse(provider);
@@ -122,8 +139,9 @@ class ProviderService {
   /**
    * Listar todos los proveedores
    */
-  async getAllProviders() {
+  async getAllProviders(warehouse) {
     const providers = await prisma.provider.findMany({
+      where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
       orderBy: {
         name: 'asc'
       }
@@ -135,18 +153,21 @@ class ProviderService {
   /**
    * Listar proveedores con paginación
    */
-  async getAllProvidersPaginated(page = 1, limit = 10) {
+  async getAllProvidersPaginated(page = 1, limit = 10, warehouse) {
     const skip = (page - 1) * limit;
     
     const [providers, total] = await Promise.all([
       prisma.provider.findMany({
+        where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
         skip,
         take: limit,
         orderBy: {
           name: 'asc'
         }
       }),
-      prisma.provider.count()
+      prisma.provider.count({
+        where: { warehouse: warehouse } // NUEVO: Contar solo de esta bodega
+      })
     ]);
     
     return {
@@ -163,9 +184,12 @@ class ProviderService {
   /**
    * Listar proveedores activos
    */
-  async getActiveProviders() {
+  async getActiveProviders(warehouse) {
     const providers = await prisma.provider.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       orderBy: {
         name: 'asc'
       }
@@ -177,9 +201,10 @@ class ProviderService {
   /**
    * Buscar proveedores
    */
-  async searchProviders(searchTerm) {
+  async searchProviders(searchTerm, warehouse) {
     const providers = await prisma.provider.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
           { businessName: { contains: searchTerm, mode: 'insensitive' } },
@@ -198,10 +223,11 @@ class ProviderService {
   /**
    * Obtener todas las ciudades únicas
    */
-  async getAllCities() {
+  async getAllCities(warehouse) {
     const providers = await prisma.provider.findMany({
       where: {
         isActive: true,
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         city: { not: null }
       },
       select: { city: true },
@@ -215,10 +241,11 @@ class ProviderService {
   /**
    * Obtener todos los países únicos
    */
-  async getAllCountries() {
+  async getAllCountries(warehouse) {
     const providers = await prisma.provider.findMany({
       where: {
         isActive: true,
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         country: { not: null }
       },
       select: { country: true },
@@ -232,13 +259,16 @@ class ProviderService {
   /**
    * Desactivar proveedor (soft delete)
    */
-  async deleteProvider(id) {
-    const provider = await prisma.provider.findUnique({
-      where: { id: parseInt(id) }
+  async deleteProvider(id, warehouse) {
+    const provider = await prisma.provider.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      }
     });
     
     if (!provider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
     await prisma.provider.update({
@@ -252,13 +282,16 @@ class ProviderService {
   /**
    * Activar proveedor
    */
-  async activateProvider(id) {
-    const provider = await prisma.provider.findUnique({
-      where: { id: parseInt(id) }
+  async activateProvider(id, warehouse) {
+    const provider = await prisma.provider.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      }
     });
     
     if (!provider) {
-      throw new Error('Proveedor no encontrado');
+      throw new Error('Proveedor no encontrado en esta bodega');
     }
     
     await prisma.provider.update({
@@ -287,6 +320,7 @@ class ProviderService {
       country: provider.country,
       paymentTerms: provider.paymentTerms,
       paymentDays: provider.paymentDays,
+      warehouse: provider.warehouse, // NUEVO: Incluir bodega en respuesta
       isActive: provider.isActive,
       notes: provider.notes,
       createdAt: provider.createdAt,

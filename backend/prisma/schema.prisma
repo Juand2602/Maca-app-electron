@@ -15,31 +15,27 @@ model User {
   email     String   @unique
   password  String
   fullName  String   @map("full_name")
-  role      String   @default("EMPLOYEE") // CAMBIADO: Role -> String
+  role      String   @default("EMPLOYEE")
+  warehouse String   @default("San Francisco") // NUEVO: Campo bodega
   isActive  Boolean  @default(true) @map("is_active")
   lastLogin DateTime? @map("last_login")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relación con Employee (uno a uno)
   employee  Employee? @relation(fields: [employeeId], references: [id])
   employeeId Int?     @unique @map("employee_id")
 
-  // Relaciones inversas con Sale e Invoice
   sales     Sale[]
   invoices  Invoice[]
 
   @@map("users")
 }
 
-// La definición 'enum Role' ha sido eliminada
-
 // ============= EMPLEADOS =============
 
 model Employee {
   id          Int            @id @default(autoincrement())
   
-  // Información Personal
   document    String         @unique
   firstName   String         @map("first_name")
   lastName    String         @map("last_name")
@@ -52,32 +48,26 @@ model Employee {
   phone       String?
   email       String         @unique
   
-  // Información Laboral
   position    String?
   hireDate    DateTime?      @map("hire_date")
   salary      Float?
   workSchedule String?       @map("work_schedule")
   contractType String?       @map("contract_type")
   
-  // Contacto de Emergencia
   emergencyContactName String?         @map("emergency_contact_name")
   emergencyContactPhone String?        @map("emergency_contact_phone")
   emergencyContactRelationship String? @map("emergency_contact_relationship")
   
-  // Estado y Notas
-  status      String         @default("ACTIVE") // CAMBIADO: EmployeeStatus -> String
+  status      String         @default("ACTIVE")
   notes       String?
   
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
-  // Relación inversa con User (uno a uno)
   user        User?
 
   @@map("employees")
 }
-
-// La definición 'enum EmployeeStatus' ha sido eliminada
 
 // ============= PROVEEDORES =============
 
@@ -95,12 +85,12 @@ model Provider {
   country       String?
   paymentTerms  String?   @map("payment_terms")
   paymentDays   Int?      @map("payment_days")
+  warehouse     String    @default("San Francisco") // NUEVO: Campo bodega
   isActive      Boolean   @default(true) @map("is_active")
   notes         String?
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  // Relaciones futuras con facturas/compras
   invoices      Invoice[]
 
   @@map("providers")
@@ -117,14 +107,15 @@ model Product {
   category      String
   color         String
   material      String
+  imageUrl      String?        @map("image_url") // NUEVO: Campo para la imagen
   purchasePrice Float          @map("purchase_price")
   salePrice     Float          @map("sale_price")
   minStock      Int            @default(5) @map("min_stock")
+  warehouse     String         @default("San Francisco")
   isActive      Boolean        @default(true) @map("is_active")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 
-  // Relaciones
   stocks        ProductStock[]
   saleItems     SaleItem[]
 
@@ -138,14 +129,13 @@ model ProductStock {
   quantity         Int     @default(0)
   reservedQuantity Int     @default(0) @map("reserved_quantity")
 
-  // Relación con Product
   product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, size])
   @@map("product_stock")
 }
 
-// ============= VENTAS (para referencia futura) =============
+// ============= VENTAS =============
 
 model Sale {
   id            Int      @id @default(autoincrement())
@@ -158,7 +148,8 @@ model Sale {
   tax           Float    @default(0)
   discount      Float    @default(0)
   total         Float
-  status        String   @default("PENDING") // CAMBIADO: SaleStatus -> String
+  warehouse     String   @default("San Francisco") // NUEVO: Campo bodega
+  status        String   @default("PENDING")
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -171,8 +162,6 @@ model Sale {
 
   @@map("sales")
 }
-
-// La definición 'enum SaleStatus' ha sido eliminada
 
 model SaleItem {
   id          Int      @id @default(autoincrement())
@@ -195,7 +184,7 @@ model SaleItem {
 model SalePayment {
   id            Int    @id @default(autoincrement())
   amount        Float
-  paymentMethod String @map("payment_method") // CAMBIADO: PaymentMethod -> String
+  paymentMethod String @map("payment_method")
   paymentDate   DateTime @default(now()) @map("payment_date")
   reference     String?
   notes         String?
@@ -207,9 +196,7 @@ model SalePayment {
   @@map("sale_payments")
 }
 
-// La definición 'enum PaymentMethod' ha sido eliminada
-
-// ============= FACTURAS/COMPRAS (para referencia futura) =============
+// ============= FACTURAS/COMPRAS =============
 
 model Invoice {
   id            Int      @id @default(autoincrement())
@@ -219,7 +206,8 @@ model Invoice {
   subtotal      Float
   tax           Float
   total         Float
-  status        String   @default("PENDING") // CAMBIADO: InvoiceStatus -> String
+  warehouse     String   @default("San Francisco") // NUEVO: Campo bodega
+  status        String   @default("PENDING")
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -235,12 +223,10 @@ model Invoice {
   @@map("invoices")
 }
 
-// La definición 'enum InvoiceStatus' ha sido eliminada
-
 model InvoicePayment {
   id            Int      @id @default(autoincrement())
   amount        Float
-  paymentMethod String   @map("payment_method") // CAMBIADO: PaymentMethod -> String
+  paymentMethod String   @map("payment_method")
   paymentDate   DateTime @default(now()) @map("payment_date")
   reference     String?
   notes         String?

@@ -18,13 +18,14 @@ class InvoiceController {
       }
       
       const userId = req.user?.id;
-      const invoice = await invoiceService.createInvoice(req.body, userId);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoice = await invoiceService.createInvoice(req.body, userId, warehouse);
       
       res.status(201).json(invoice);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado' ||
-          error.message === 'El número de factura ya existe') {
+      if (error.message.includes('no encontrado') ||
+          error.message.includes('ya existe')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -45,12 +46,13 @@ class InvoiceController {
       }
       
       const userId = req.user?.id;
-      const result = await invoiceService.addPayment(req.body, userId);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await invoiceService.addPayment(req.body, userId, warehouse);
       
       res.status(201).json(result);
       
     } catch (error) {
-      if (error.message === 'Factura no encontrada' ||
+      if (error.message.includes('no encontrada') ||
           error.message.includes('excede el balance')) {
         return res.status(400).json({ error: error.message });
       }
@@ -64,12 +66,13 @@ class InvoiceController {
   async getInvoiceById(req, res, next) {
     try {
       const { id } = req.params;
-      const invoice = await invoiceService.getInvoiceById(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoice = await invoiceService.getInvoiceById(id, warehouse);
       
       res.json(invoice);
       
     } catch (error) {
-      if (error.message === 'Factura no encontrada') {
+      if (error.message === 'Factura no encontrada en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -82,12 +85,13 @@ class InvoiceController {
   async getInvoiceByNumber(req, res, next) {
     try {
       const { invoiceNumber } = req.params;
-      const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, warehouse);
       
       res.json(invoice);
       
     } catch (error) {
-      if (error.message === 'Factura no encontrada') {
+      if (error.message === 'Factura no encontrada en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -99,7 +103,8 @@ class InvoiceController {
    */
   async getAllInvoices(req, res, next) {
     try {
-      const invoices = await invoiceService.getAllInvoices();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoices = await invoiceService.getAllInvoices(warehouse);
       res.json(invoices);
     } catch (error) {
       next(error);
@@ -113,8 +118,9 @@ class InvoiceController {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
       
-      const result = await invoiceService.getAllInvoicesPaginated(page, limit);
+      const result = await invoiceService.getAllInvoicesPaginated(page, limit, warehouse);
       
       res.json(result);
     } catch (error) {
@@ -134,7 +140,8 @@ class InvoiceController {
         return res.status(400).json({ error: 'Estado inválido' });
       }
       
-      const invoices = await invoiceService.getInvoicesByStatus(status.toUpperCase());
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoices = await invoiceService.getInvoicesByStatus(status.toUpperCase(), warehouse);
       res.json(invoices);
       
     } catch (error) {
@@ -148,7 +155,8 @@ class InvoiceController {
   async getInvoicesByProvider(req, res, next) {
     try {
       const { providerId } = req.params;
-      const invoices = await invoiceService.getInvoicesByProvider(providerId);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoices = await invoiceService.getInvoicesByProvider(providerId, warehouse);
       res.json(invoices);
     } catch (error) {
       next(error);
@@ -160,7 +168,8 @@ class InvoiceController {
    */
   async getOverdueInvoices(req, res, next) {
     try {
-      const invoices = await invoiceService.getOverdueInvoices();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoices = await invoiceService.getOverdueInvoices(warehouse);
       res.json(invoices);
     } catch (error) {
       next(error);
@@ -180,7 +189,8 @@ class InvoiceController {
         });
       }
       
-      const invoices = await invoiceService.getInvoicesByDateRange(startDate, endDate);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoices = await invoiceService.getInvoicesByDateRange(startDate, endDate, warehouse);
       res.json(invoices);
       
     } catch (error) {
@@ -194,7 +204,8 @@ class InvoiceController {
   async getTotalByStatus(req, res, next) {
     try {
       const { status } = req.params;
-      const total = await invoiceService.getTotalByStatus(status.toUpperCase());
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const total = await invoiceService.getTotalByStatus(status.toUpperCase(), warehouse);
       
       res.json({ status, total });
       
@@ -208,7 +219,8 @@ class InvoiceController {
    */
   async getTotalPendingBalance(req, res, next) {
     try {
-      const total = await invoiceService.getTotalPendingBalance();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const total = await invoiceService.getTotalPendingBalance(warehouse);
       res.json({ totalPendingBalance: total });
     } catch (error) {
       next(error);
@@ -229,12 +241,13 @@ class InvoiceController {
       }
       
       const { id } = req.params;
-      const invoice = await invoiceService.updateInvoice(id, req.body);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const invoice = await invoiceService.updateInvoice(id, req.body, warehouse);
       
       res.json(invoice);
       
     } catch (error) {
-      if (error.message === 'Factura no encontrada' ||
+      if (error.message.includes('no encontrada') ||
           error.message.includes('No se puede modificar')) {
         return res.status(400).json({ error: error.message });
       }
@@ -248,12 +261,13 @@ class InvoiceController {
   async cancelInvoice(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await invoiceService.cancelInvoice(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await invoiceService.cancelInvoice(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Factura no encontrada' ||
+      if (error.message.includes('no encontrada') ||
           error.message.includes('No se puede cancelar')) {
         return res.status(400).json({ error: error.message });
       }

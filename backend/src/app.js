@@ -1,6 +1,7 @@
 // backend/src/app.js
 const express = require('express');
 const cors = require('cors');
+const path = require('path'); // NUEVO
 require('dotenv').config();
 
 const app = express();
@@ -16,6 +17,9 @@ app.use(cors({
 // Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// NUEVO: Servir archivos estáticos (imágenes de productos)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request logging (desarrollo)
 if (process.env.NODE_ENV !== 'production') {
@@ -53,6 +57,7 @@ const saleRoutes = loadRoute('./routes/sales', '/api/sales');
 const invoiceRoutes = loadRoute('./routes/invoices', '/api/invoices');
 const employeeRoutes = loadRoute('./routes/employees', '/api/employees');
 const dashboardRoutes = loadRoute('./routes/dashboard', '/api/dashboard');
+const uploadRoutes = loadRoute('./routes/upload', '/api/upload'); // NUEVO
 
 // Montar rutas solo si se cargaron correctamente
 if (authRoutes) app.use('/api/auth', authRoutes);
@@ -62,6 +67,7 @@ if (saleRoutes) app.use('/api/sales', saleRoutes);
 if (invoiceRoutes) app.use('/api/invoices', invoiceRoutes);
 if (employeeRoutes) app.use('/api/employees', employeeRoutes);
 if (dashboardRoutes) app.use('/api/dashboard', dashboardRoutes);
+if (uploadRoutes) app.use('/api/upload', uploadRoutes); // NUEVO
 
 // Health check (sin prefijo /api para facilitar monitoreo)
 app.get('/health', (req, res) => {
@@ -79,7 +85,8 @@ app.get('/health', (req, res) => {
       sales: !!saleRoutes,
       invoices: !!invoiceRoutes,
       employees: !!employeeRoutes,
-      dashboard: !!dashboardRoutes
+      dashboard: !!dashboardRoutes,
+      upload: !!uploadRoutes // NUEVO
     }
   });
 });
@@ -99,7 +106,8 @@ app.get('/', (req, res) => {
       sales: '/api/sales',
       invoices: '/api/invoices',
       employees: '/api/employees',
-      dashboard: '/api/dashboard'
+      dashboard: '/api/dashboard',
+      upload: '/api/upload' // NUEVO
     }
   });
 });
@@ -119,6 +127,21 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  
+  // Error de Multer (archivos)
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      error: 'Archivo muy grande',
+      message: 'El tamaño del archivo excede el límite permitido (5MB)'
+    });
+  }
+  
+  if (err.message && err.message.includes('Tipo de archivo no permitido')) {
+    return res.status(400).json({
+      error: 'Tipo de archivo no válido',
+      message: err.message
+    });
+  }
   
   // Errores de Prisma
   if (err.code === 'P2002') {
@@ -158,6 +181,14 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
+  // NUEVO: Crear directorio de uploads si no existe
+  const fs = require('fs');
+  const uploadDir = path.join(__dirname, '../uploads/products');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('📁 Directorio de uploads creado:', uploadDir);
+  }
+  
   app.listen(PORT, () => {
     console.log('='.repeat(50));
     console.log(`🚀 Sistema Calzado API`);
@@ -165,6 +196,7 @@ if (require.main === module) {
     console.log(`🌐 Server: http://localhost:${PORT}`);
     console.log(`❤️  Health: http://localhost:${PORT}/health`);
     console.log(`📡 API Base: http://localhost:${PORT}/api`);
+    console.log(`📁 Uploads: http://localhost:${PORT}/uploads`);
     console.log(`💾 Database: ${process.env.DATABASE_URL || 'SQLite local'}`);
     console.log('='.repeat(50));
   });

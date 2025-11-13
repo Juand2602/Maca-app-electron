@@ -11,15 +11,12 @@ import {
   MapPin,
   User,
   Users,
-  DollarSign,
   Calendar,
   CheckCircle,
   XCircle,
-  Download,
   UserCheck,
   UserX,
   Shield,
-  Briefcase,
   Trash2
 } from 'lucide-react'
 import { useEmployeesStore } from '../../store/employeesStore'
@@ -29,7 +26,6 @@ const EmployeesList = () => {
   const {
     employees,
     fetchEmployees,
-    fetchEmployeeStats,
     deleteEmployee,
     toggleEmployeeStatus,
     searchTerm,
@@ -37,8 +33,7 @@ const EmployeesList = () => {
     filters,
     setFilters,
     clearFilters,
-    isLoading,
-    error
+    isLoading
   } = useEmployeesStore()
 
   const [showFilters, setShowFilters] = useState(false)
@@ -48,14 +43,10 @@ const EmployeesList = () => {
   const [showInactiveEmployees, setShowInactiveEmployees] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
 
-  // Cargar datos al montar el componente
   useEffect(() => {
     const loadData = async () => {
       try {
-        await Promise.all([
-          fetchEmployees(),
-          fetchEmployeeStats()
-        ])
+        await fetchEmployees()
         setDataLoaded(true)
       } catch (error) {
         toast.error('Error al cargar los datos de empleados')
@@ -65,9 +56,8 @@ const EmployeesList = () => {
     if (!dataLoaded) {
       loadData()
     }
-  }, [fetchEmployees, fetchEmployeeStats, dataLoaded])
+  }, [fetchEmployees, dataLoaded])
 
-  // Obtener datos del store
   const filteredEmployees = useEmployeesStore(state => state.getFilteredEmployees())
   const stats = useEmployeesStore(state => state.getEmployeesStats())
 
@@ -75,22 +65,13 @@ const EmployeesList = () => {
     setCurrentPage(1)
   }, [searchTerm, filters])
 
-  // Paginación
   const indexOfLastEmployee = currentPage * itemsPerPage
   const indexOfFirstEmployee = indexOfLastEmployee - itemsPerPage
   const currentEmployees = filteredEmployees.slice(indexOfFirstEmployee, indexOfLastEmployee)
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage)
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
-
   const formatDate = (dateString) => {
-    if (!dateString) return 'No especificada';
+    if (!dateString) return 'No especificada'
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
@@ -99,7 +80,7 @@ const EmployeesList = () => {
   }
 
   const calculateYearsOfService = (hireDate) => {
-    if (!hireDate) return 0;
+    if (!hireDate) return 0
     const years = (new Date() - new Date(hireDate)) / (365.25 * 24 * 60 * 60 * 1000)
     return Math.floor(years)
   }
@@ -151,7 +132,6 @@ const EmployeesList = () => {
     clearFilters()
   }
 
-  // Obtener datos únicos para filtros
   const uniqueDepartments = [...new Set(employees.map(e => e.department).filter(Boolean))].sort()
   const uniquePositions = [...new Set(employees.map(e => e.position).filter(Boolean))].sort()
 
@@ -165,12 +145,11 @@ const EmployeesList = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Empleados</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Gestiona empleados, roles y permisos del sistema
+            Gestiona empleados y usuarios del sistema
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
@@ -181,8 +160,7 @@ const EmployeesList = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card">
           <div className="card-body">
             <div className="flex items-center">
@@ -199,48 +177,30 @@ const EmployeesList = () => {
         <div className="card">
           <div className="card-body">
             <div className="flex items-center">
-              <DollarSign className="h-8 w-8 text-green-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Nómina Total</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(stats.totalPayroll)}
-                </p>
-                <p className="text-xs text-gray-500">mensual</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-body">
-            <div className="flex items-center">
-              <Briefcase className="h-8 w-8 text-purple-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Departamentos</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {Object.keys(stats.departmentCount).length}
-                </p>
-                <p className="text-xs text-gray-500">áreas de trabajo</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-body">
-            <div className="flex items-center">
               <Shield className="h-8 w-8 text-orange-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Administradores</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.roleCount.ADMIN}</p>
-                <p className="text-xs text-gray-500">{stats.roleCount.EMPLOYEE} empleados</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.roleCount.ADMIN || 0}</p>
+                <p className="text-xs text-gray-500">{stats.roleCount.EMPLOYEE || 0} empleados</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-body">
+            <div className="flex items-center">
+              <XCircle className="h-8 w-8 text-red-500" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Inactivos</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.inactiveEmployees || 0}</p>
+                <p className="text-xs text-gray-500">empleados desactivados</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Toggle for inactive employees */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <label className="flex items-center">
@@ -256,7 +216,6 @@ const EmployeesList = () => {
           </label>
         </div>
 
-        {/* Actions for selected employees */}
         {selectedEmployees.length > 0 && (
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500">
@@ -278,17 +237,15 @@ const EmployeesList = () => {
         )}
       </div>
 
-      {/* Search and Filters */}
       <div className="card">
         <div className="card-body space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-            {/* Search */}
             <div className="flex-1 max-w-lg">
               <div className="relative">
                 <Search className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Buscar por nombre, email, teléfono, cargo..."
+                  placeholder="Buscar por nombre, email, teléfono..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input pl-10 w-full"
@@ -296,7 +253,6 @@ const EmployeesList = () => {
               </div>
             </div>
 
-            {/* Filter Toggle */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'}`}
@@ -306,10 +262,9 @@ const EmployeesList = () => {
             </button>
           </div>
 
-          {/* Advanced Filters */}
           {showFilters && (
             <div className="border-t pt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Departamento
@@ -358,22 +313,6 @@ const EmployeesList = () => {
                     <option value="SUSPENDED">Suspendido</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Contrato
-                  </label>
-                  <select
-                    value={filters.contractType || ''}
-                    onChange={(e) => handleFilterChange('contractType', e.target.value)}
-                    className="select w-full"
-                  >
-                    <option value="">Todos los contratos</option>
-                    <option value="indefinido">Indefinido</option>
-                    <option value="temporal">Temporal</option>
-                    <option value="prestacion">Prestación de servicios</option>
-                  </select>
-                </div>
               </div>
 
               <div className="flex justify-end">
@@ -389,7 +328,6 @@ const EmployeesList = () => {
         </div>
       </div>
 
-      {/* Employees Table */}
       <div className="card">
         <div className="card-body p-0">
           {isLoading ? (
@@ -412,9 +350,7 @@ const EmployeesList = () => {
                     </th>
                     <th>Empleado</th>
                     <th>Contacto</th>
-                    <th>Cargo</th>
-                    <th>Salario</th>
-                    <th>Contrato</th>
+                    <th>Fecha de Ingreso</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -447,7 +383,7 @@ const EmployeesList = () => {
                                   {employee.firstName} {employee.lastName}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  ID: {employee.id}
+                                  ID: {employee.id} - Doc: {employee.document}
                                 </div>
                                 <div className="text-xs text-gray-400 flex items-center mt-1">
                                   {employee.username ? (
@@ -475,34 +411,12 @@ const EmployeesList = () => {
                             </div>
                           </td>
                           <td>
-                            <div className="text-sm font-medium text-gray-900">
-                              {employee.position || 'No especificado'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {employee.department || 'No especificado'}
+                            <div className="text-sm text-gray-900">
+                              {formatDate(employee.hireDate)}
                             </div>
                             <div className="text-xs text-gray-400 flex items-center mt-1">
                               <Calendar className="h-3 w-3 mr-1" />
                               {yearsOfService} {yearsOfService === 1 ? 'año' : 'años'} de servicio
-                            </div>
-                          </td>
-                          <td className="font-medium text-gray-900">
-                            <div>
-                              {formatCurrency(employee.salary)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              mensual
-                            </div>
-                          </td>
-                          <td>
-                            <div className="text-sm text-gray-900">
-                              {employee.contractType || 'No especificado'}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Desde: {formatDate(employee.hireDate)}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {employee.document}
                             </div>
                           </td>
                           <td>
@@ -571,7 +485,6 @@ const EmployeesList = () => {
         </div>
       </div>
 
-      {/* Empty State */}
       {currentEmployees.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -596,7 +509,6 @@ const EmployeesList = () => {
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-700">

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
   Edit, 
@@ -7,92 +7,88 @@ import {
   Mail, 
   Phone, 
   MapPin, 
-  Briefcase,
-  DollarSign,
   Calendar,
   FileText,
-  Heart,
-  Shield,
   CheckCircle,
   XCircle,
   UserCheck,
   UserX,
-  AlertCircle
-} from 'lucide-react';
-import { getEmployeeById, changeEmployeeStatus } from '../../services/employeesService';
-import toast from 'react-hot-toast';
+  AlertCircle,
+  Shield
+} from 'lucide-react'
+import { useEmployeesStore } from '../../store/employeesStore'
+import toast from 'react-hot-toast'
 
 const EmployeeDetails = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [employee, setEmployee] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { getEmployeeById, toggleEmployeeStatus } = useEmployeesStore()
+  
+  const [employee, setEmployee] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        setLoading(true);
-        const data = await getEmployeeById(id);
-        setEmployee(data);
+        setLoading(true)
+        const data = await getEmployeeById(id)
+        if (data) {
+          setEmployee(data)
+        } else {
+          setError('Empleado no encontrado')
+        }
       } catch (err) {
-        setError('No se pudo cargar la información del empleado');
-        toast.error('Error al cargar los datos del empleado');
+        setError('No se pudo cargar la información del empleado')
+        toast.error('Error al cargar los datos del empleado')
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchEmployee();
-  }, [id]);
+    fetchEmployee()
+  }, [id, getEmployeeById])
 
   const handleToggleStatus = async () => {
-    if (!employee) return;
+    if (!employee) return
     
-    const newStatus = employee.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    const action = newStatus === 'ACTIVE' ? 'activar' : 'desactivar';
+    const newStatus = employee.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    const action = newStatus === 'ACTIVE' ? 'activar' : 'desactivar'
     
     if (window.confirm(`¿Estás seguro de ${action} este empleado?`)) {
       try {
-        await changeEmployeeStatus(id, newStatus);
-        setEmployee({ ...employee, status: newStatus });
-        toast.success(`Empleado ${action === 'activar' ? 'activado' : 'desactivado'} exitosamente`);
+        const result = await toggleEmployeeStatus(id)
+        if (result.success) {
+          setEmployee({ ...employee, status: newStatus })
+          toast.success(`Empleado ${action === 'activar' ? 'activado' : 'desactivado'} exitosamente`)
+        }
       } catch (err) {
-        toast.error(`Error al ${action} el empleado`);
+        toast.error(`Error al ${action} el empleado`)
       }
     }
-  };
+  }
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'No especificada';
+    if (!dateString) return 'No especificada'
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    });
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount) return 'No especificado';
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
+    })
+  }
 
   const calculateYearsOfService = (hireDate) => {
-    if (!hireDate) return 0;
-    const years = (new Date() - new Date(hireDate)) / (365.25 * 24 * 60 * 60 * 1000);
-    return Math.floor(years);
-  };
+    if (!hireDate) return 0
+    const years = (new Date() - new Date(hireDate)) / (365.25 * 24 * 60 * 60 * 1000)
+    return Math.floor(years)
+  }
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="spinner h-12 w-12"></div>
       </div>
-    );
+    )
   }
 
   if (error || !employee) {
@@ -100,15 +96,13 @@ const EmployeeDetails = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link
-              to="/employees"
-              className="flex items-center text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-5 w-5 mr-1" />
-              Volver a empleados
+            <Link to="/employees" className="btn btn-secondary">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver
             </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
-            <h1 className="text-2xl font-bold text-gray-900">Detalles del Empleado</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Detalles del Empleado</h1>
+            </div>
           </div>
         </div>
         
@@ -124,23 +118,20 @@ const EmployeeDetails = () => {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link
-            to="/employees"
-            className="flex items-center text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-5 w-5 mr-1" />
-            Volver a empleados
+          <Link to="/employees" className="btn btn-secondary">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver
           </Link>
-          <div className="h-6 w-px bg-gray-300"></div>
-          <h1 className="text-2xl font-bold text-gray-900">Detalles del Empleado</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Detalles del Empleado</h1>
+          </div>
         </div>
         <div className="flex space-x-3">
           <button
@@ -173,7 +164,6 @@ const EmployeeDetails = () => {
         </div>
       </div>
 
-      {/* Employee Info Banner */}
       <div className={`card ${
         employee.status === 'ACTIVE' 
           ? 'bg-gradient-to-r from-green-50 to-emerald-50' 
@@ -197,7 +187,7 @@ const EmployeeDetails = () => {
                 {employee.firstName} {employee.lastName}
               </h3>
               <p className="text-gray-600">
-                {employee.position} - {employee.department}
+                {employee.position || 'Cargo no especificado'} - {employee.department || 'Departamento no especificado'}
               </p>
               <div className="flex items-center mt-1">
                 {employee.status === 'ACTIVE' ? (
@@ -208,7 +198,9 @@ const EmployeeDetails = () => {
                 <span className={`text-sm ${
                   employee.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {employee.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                  {employee.status === 'ACTIVE' ? 'Activo' : 
+                   employee.status === 'VACATION' ? 'Vacaciones' :
+                   employee.status === 'SUSPENDED' ? 'Suspendido' : 'Inactivo'}
                 </span>
               </div>
             </div>
@@ -222,7 +214,6 @@ const EmployeeDetails = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Información Personal */}
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
             <div className="card-body">
@@ -250,16 +241,6 @@ const EmployeeDetails = () => {
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Género</p>
-                  <p className="text-sm text-gray-900">{employee.gender || 'No especificado'}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Estado civil</p>
-                  <p className="text-sm text-gray-900">{employee.maritalStatus || 'No especificado'}</p>
-                </div>
-
-                <div>
                   <p className="text-sm font-medium text-gray-500">Ciudad</p>
                   <p className="text-sm text-gray-900">{employee.city || 'No especificada'}</p>
                 </div>
@@ -267,30 +248,6 @@ const EmployeeDetails = () => {
                 <div className="md:col-span-2">
                   <p className="text-sm font-medium text-gray-500">Dirección</p>
                   <p className="text-sm text-gray-900">{employee.address || 'No especificada'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Información Laboral */}
-          <div className="card">
-            <div className="card-body">
-              <div className="flex items-center space-x-3 mb-6">
-                <Briefcase className="h-6 w-6 text-primary-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Información Laboral
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Cargo</p>
-                  <p className="text-sm text-gray-900">{employee.position || 'No especificado'}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Departamento</p>
-                  <p className="text-sm text-gray-900">{employee.department || 'No especificado'}</p>
                 </div>
 
                 <div>
@@ -304,58 +261,12 @@ const EmployeeDetails = () => {
                     {calculateYearsOfService(employee.hireDate)} {calculateYearsOfService(employee.hireDate) === 1 ? 'año' : 'años'}
                   </p>
                 </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Salario</p>
-                  <p className="text-sm text-gray-900">{formatCurrency(employee.salary)}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Tipo de contrato</p>
-                  <p className="text-sm text-gray-900">{employee.contractType || 'No especificado'}</p>
-                </div>
-
-                <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-500">Horario de trabajo</p>
-                  <p className="text-sm text-gray-900">{employee.workSchedule || 'No especificado'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Contacto de Emergencia */}
-          <div className="card">
-            <div className="card-body">
-              <div className="flex items-center space-x-3 mb-6">
-                <Heart className="h-6 w-6 text-primary-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Contacto de Emergencia
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Nombre</p>
-                  <p className="text-sm text-gray-900">{employee.emergencyContactName || 'No especificado'}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Teléfono</p>
-                  <p className="text-sm text-gray-900">{employee.emergencyContactPhone || 'No especificado'}</p>
-                </div>
-
-                <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-500">Parentesco</p>
-                  <p className="text-sm text-gray-900">{employee.emergencyContactRelationship || 'No especificado'}</p>
-                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Contacto */}
           <div className="card">
             <div className="card-body">
               <div className="flex items-center space-x-3 mb-6">
@@ -393,7 +304,6 @@ const EmployeeDetails = () => {
             </div>
           </div>
 
-          {/* Información de Sistema */}
           <div className="card">
             <div className="card-body">
               <div className="flex items-center space-x-3 mb-6">
@@ -422,7 +332,6 @@ const EmployeeDetails = () => {
             </div>
           </div>
 
-          {/* Notas */}
           {employee.notes && (
             <div className="card">
               <div className="card-body">
@@ -440,7 +349,7 @@ const EmployeeDetails = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default EmployeeDetails;
+export default EmployeeDetails

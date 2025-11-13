@@ -1,10 +1,74 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { ArrowLeft, Save, X, Building, User, Phone, Mail, MapPin, CreditCard } from 'lucide-react'
 import { useProvidersStore } from '../../store/providersStore'
 import { providersService } from '../../services/providersService'
 import toast from 'react-hot-toast'
+
+// Componente Combobox reutilizable
+const Combobox = ({ value, onChange, options, placeholder, error, disabled }) => {
+  const [inputValue, setInputValue] = useState(value || '')
+  const [showOptions, setShowOptions] = useState(false)
+  const [filteredOptions, setFilteredOptions] = useState(options)
+
+  useEffect(() => {
+    setInputValue(value || '')
+  }, [value])
+
+  useEffect(() => {
+    if (inputValue) {
+      const filtered = options.filter(opt => 
+        opt.toLowerCase().includes(inputValue.toLowerCase())
+      )
+      setFilteredOptions(filtered)
+    } else {
+      setFilteredOptions(options)
+    }
+  }, [inputValue, options])
+
+  const handleInputChange = (e) => {
+    const newValue = e.target.value
+    setInputValue(newValue)
+    onChange(newValue)
+    setShowOptions(true)
+  }
+
+  const handleSelectOption = (option) => {
+    setInputValue(option)
+    onChange(option)
+    setShowOptions(false)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={inputValue}
+        onChange={handleInputChange}
+        onFocus={() => setShowOptions(true)}
+        onBlur={() => setTimeout(() => setShowOptions(false), 200)}
+        className={`input ${error ? 'input-error' : ''}`}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+      />
+      {showOptions && filteredOptions.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+          {filteredOptions.map((option, index) => (
+            <div
+              key={index}
+              onMouseDown={() => handleSelectOption(option)}
+              className="px-4 py-2 cursor-pointer hover:bg-blue-50 hover:text-blue-700"
+            >
+              {option}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const AddProvider = () => {
   const navigate = useNavigate()
@@ -13,6 +77,7 @@ const AddProvider = () => {
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
     watch
@@ -34,7 +99,6 @@ const AddProvider = () => {
   })
 
   useEffect(() => {
-    // Cargar ciudades desde el backend
     const loadCities = async () => {
       try {
         const citiesData = await providersService.getCities()
@@ -49,7 +113,6 @@ const AddProvider = () => {
 
   const onSubmit = async (data) => {
     try {
-      // Validaciones adicionales
       if (!data.name.trim()) {
         throw new Error('El nombre del proveedor es requerido')
       }
@@ -58,7 +121,6 @@ const AddProvider = () => {
         throw new Error('El documento del proveedor es requerido')
       }
 
-      // Preparar datos
       const providerData = {
         ...data,
         name: data.name.trim(),
@@ -76,7 +138,6 @@ const AddProvider = () => {
         isActive: true
       }
 
-      // Crear proveedor
       const result = await addProvider(providerData)
       
       if (result.success) {
@@ -94,7 +155,6 @@ const AddProvider = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link 
@@ -114,7 +174,6 @@ const AddProvider = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Información Básica */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -124,7 +183,6 @@ const AddProvider = () => {
           </div>
           <div className="card-body">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Documento */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Documento *
@@ -146,7 +204,6 @@ const AddProvider = () => {
                 )}
               </div>
 
-              {/* Nombre de la empresa */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre de la Empresa *
@@ -168,7 +225,6 @@ const AddProvider = () => {
                 )}
               </div>
 
-              {/* Razón Social */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Razón Social
@@ -181,7 +237,6 @@ const AddProvider = () => {
                 />
               </div>
 
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email Corporativo
@@ -205,7 +260,6 @@ const AddProvider = () => {
           </div>
         </div>
 
-        {/* Información de Contacto */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -215,7 +269,6 @@ const AddProvider = () => {
           </div>
           <div className="card-body">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Persona de contacto */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Persona de Contacto
@@ -228,7 +281,6 @@ const AddProvider = () => {
                 />
               </div>
 
-              {/* Teléfono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Teléfono
@@ -249,7 +301,6 @@ const AddProvider = () => {
                 )}
               </div>
 
-              {/* Celular */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Celular
@@ -273,7 +324,6 @@ const AddProvider = () => {
           </div>
         </div>
 
-        {/* Ubicación */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -283,7 +333,6 @@ const AddProvider = () => {
           </div>
           <div className="card-body">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Dirección */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Dirección
@@ -296,26 +345,29 @@ const AddProvider = () => {
                 />
               </div>
 
-              {/* Ciudad */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Ciudad
                 </label>
-                <select
-                  {...register('city')}
-                  className="select"
-                >
-                  <option value="">Seleccionar ciudad</option>
-                  {cities.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
+                <Controller
+                  name="city"
+                  control={control}
+                  render={({ field }) => (
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={cities}
+                      placeholder="Escribe o selecciona una ciudad"
+                      error={errors.city}
+                      disabled={false}
+                    />
+                  )}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Información de Pago */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -325,7 +377,6 @@ const AddProvider = () => {
           </div>
           <div className="card-body">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Términos de pago */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Términos de Pago
@@ -338,7 +389,6 @@ const AddProvider = () => {
                 />
               </div>
 
-              {/* Días de pago */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Días de Pago
@@ -363,7 +413,6 @@ const AddProvider = () => {
           </div>
         </div>
 
-        {/* Notas */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900">Notas</h3>
@@ -378,7 +427,6 @@ const AddProvider = () => {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex justify-end space-x-4">
           <Link
             to="/providers"

@@ -6,7 +6,7 @@ class SaleService {
   /**
    * Crear venta con items y pagos
    */
-  async createSale(data, userId) {
+  async createSale(data, userId, warehouse) {
     // Verificar que el usuario existe
     const user = await prisma.user.findUnique({
       where: { id: parseInt(userId) }
@@ -21,13 +21,16 @@ class SaleService {
       throw new Error('Debe incluir al menos un item');
     }
     
-    // Validar stock y obtener datos de productos
+    // Validar stock y obtener datos de productos DE LA MISMA BODEGA
     const itemsWithProducts = [];
     
     for (const itemData of data.items) {
-      // Obtener producto
-      const product = await prisma.product.findUnique({
-        where: { id: parseInt(itemData.productId) },
+      // Obtener producto DE LA MISMA BODEGA
+      const product = await prisma.product.findFirst({
+        where: { 
+          id: parseInt(itemData.productId),
+          warehouse: warehouse // NUEVO: Solo productos de esta bodega
+        },
         include: {
           stocks: {
             where: { size: itemData.size }
@@ -36,7 +39,7 @@ class SaleService {
       });
       
       if (!product) {
-        throw new Error(`Producto no encontrado: ${itemData.productId}`);
+        throw new Error(`Producto no encontrado en esta bodega: ${itemData.productId}`);
       }
       
       if (!product.isActive) {
@@ -84,7 +87,6 @@ class SaleService {
     // Validar pagos
     let payments = data.payments || [];
     
-    // Si no hay pagos pero hay paymentMethod (legacy), crear un pago
     if (payments.length === 0 && data.paymentMethod) {
       payments = [{
         paymentMethod: data.paymentMethod,
@@ -96,7 +98,6 @@ class SaleService {
       throw new Error('Debe especificar al menos un método de pago');
     }
     
-    // Validar que los pagos cubran el total
     const totalPayments = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
     
     if (totalPayments < total) {
@@ -106,15 +107,13 @@ class SaleService {
     }
     
     // Generar número de venta
-    const saleNumber = await this.generateSaleNumber();
+    const saleNumber = await this.generateSaleNumber(warehouse);
     
     // Crear venta con items y pagos en transacción
     const sale = await prisma.$transaction(async (tx) => {
-      // Crear venta con items y pagos
       const newSale = await tx.sale.create({
         data: {
           saleNumber,
-          // ✅ CORRECCIÓN: Usar 'user' con 'connect'
           user: {
             connect: { id: parseInt(userId) }
           },
@@ -125,9 +124,9 @@ class SaleService {
           discount,
           tax,
           total,
+          warehouse: warehouse, // NUEVO: Asignar bodega
           status: 'COMPLETED',
           notes: data.notes,
-          // Crear items
           items: {
             create: itemsWithProducts.map(item => ({
               productId: item.productId,
@@ -137,7 +136,6 @@ class SaleService {
               subtotal: item.unitPrice * item.quantity
             }))
           },
-          // Crear pagos
           payments: {
             create: payments.map(p => ({
               paymentMethod: p.paymentMethod,
@@ -191,9 +189,12 @@ class SaleService {
   /**
    * Obtener venta por ID
    */
-  async getSaleById(id) {
-    const sale = await prisma.sale.findUnique({
-      where: { id: parseInt(id) },
+  async getSaleById(id, warehouse) {
+    const sale = await prisma.sale.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         user: {
           select: {
@@ -218,7 +219,7 @@ class SaleService {
     });
     
     if (!sale) {
-      throw new Error('Venta no encontrada');
+      throw new Error('Venta no encontrada en esta bodega');
     }
     
     return this.mapToResponse(sale);
@@ -227,9 +228,12 @@ class SaleService {
   /**
    * Obtener venta por número
    */
-  async getSaleBySaleNumber(saleNumber) {
-    const sale = await prisma.sale.findUnique({
-      where: { saleNumber },
+  async getSaleBySaleNumber(saleNumber, warehouse) {
+    const sale = await prisma.sale.findFirst({
+      where: { 
+        saleNumber,
+        warehouse: warehouse // NUEVO: Filtrar por bodega
+      },
       include: {
         user: {
           select: {
@@ -254,7 +258,7 @@ class SaleService {
     });
     
     if (!sale) {
-      throw new Error('Venta no encontrada');
+      throw new Error('Venta no encontrada en esta bodega');
     }
     
     return this.mapToResponse(sale);
@@ -263,8 +267,9 @@ class SaleService {
   /**
    * Listar todas las ventas
    */
-  async getAllSales() {
+  async getAllSales(warehouse) {
     const sales = await prisma.sale.findMany({
+      where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
       include: {
         user: {
           select: {
@@ -295,11 +300,12 @@ class SaleService {
   /**
    * Listar ventas con paginación
    */
-  async getAllSalesPaginated(page = 1, limit = 10) {
+  async getAllSalesPaginated(page = 1, limit = 10, warehouse) {
     const skip = (page - 1) * limit;
     
     const [sales, total] = await Promise.all([
       prisma.sale.findMany({
+        where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
         skip,
         take: limit,
         include: {
@@ -325,7 +331,9 @@ class SaleService {
           createdAt: 'desc'
         }
       }),
-      prisma.sale.count()
+      prisma.sale.count({
+        where: { warehouse: warehouse } // NUEVO: Contar solo de esta bodega
+      })
     ]);
     
     return {
@@ -342,9 +350,10 @@ class SaleService {
   /**
    * Ventas por rango de fechas
    */
-  async getSalesByDateRange(startDate, endDate) {
+  async getSalesByDateRange(startDate, endDate, warehouse) {
     const sales = await prisma.sale.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -380,9 +389,10 @@ class SaleService {
   /**
    * Buscar ventas
    */
-  async searchSales(searchTerm) {
+  async searchSales(searchTerm, warehouse) {
     const sales = await prisma.sale.findMany({
       where: {
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         OR: [
           { saleNumber: { contains: searchTerm, mode: 'insensitive' } },
           { customerName: { contains: searchTerm, mode: 'insensitive' } },
@@ -420,10 +430,11 @@ class SaleService {
   /**
    * Total de ventas por rango de fechas
    */
-  async getTotalSalesByDateRange(startDate, endDate) {
+  async getTotalSalesByDateRange(startDate, endDate, warehouse) {
     const result = await prisma.sale.aggregate({
       where: {
         status: 'COMPLETED',
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -440,10 +451,11 @@ class SaleService {
   /**
    * Contar ventas por rango de fechas
    */
-  async countSalesByDateRange(startDate, endDate) {
+  async countSalesByDateRange(startDate, endDate, warehouse) {
     return await prisma.sale.count({
       where: {
         status: 'COMPLETED',
+        warehouse: warehouse, // NUEVO: Filtrar por bodega
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -455,16 +467,19 @@ class SaleService {
   /**
    * Cancelar venta y devolver stock
    */
-  async cancelSale(id) {
-    const sale = await prisma.sale.findUnique({
-      where: { id: parseInt(id) },
+  async cancelSale(id, warehouse) {
+    const sale = await prisma.sale.findFirst({
+      where: { 
+        id: parseInt(id),
+        warehouse: warehouse // NUEVO: Verificar bodega
+      },
       include: {
         items: true
       }
     });
     
     if (!sale) {
-      throw new Error('Venta no encontrada');
+      throw new Error('Venta no encontrada en esta bodega');
     }
     
     if (sale.status === 'CANCELLED') {
@@ -505,15 +520,17 @@ class SaleService {
   }
   
   /**
-   * Generar número de venta único
+   * Generar número de venta único POR BODEGA
    */
-  async generateSaleNumber() {
+  async generateSaleNumber(warehouse) {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const prefix = `VEN-${dateStr}`;
+    const warehousePrefix = warehouse === 'Centro' ? 'CEN' : 'SF';
+    const prefix = `VEN-${warehousePrefix}-${dateStr}`;
     
     const count = await prisma.sale.count({
       where: {
+        warehouse: warehouse, // NUEVO: Contar solo de esta bodega
         saleNumber: {
           startsWith: prefix
         }
@@ -544,6 +561,7 @@ class SaleService {
       discount: sale.discount,
       tax: sale.tax,
       total: sale.total,
+      warehouse: sale.warehouse, // NUEVO: Incluir bodega en respuesta
       status: sale.status,
       notes: sale.notes,
       totalItems,

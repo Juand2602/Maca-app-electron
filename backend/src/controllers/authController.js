@@ -1,4 +1,3 @@
-// backend/src/controllers/authController.js
 const authService = require('../services/authService');
 const { validationResult } = require('express-validator');
 
@@ -9,7 +8,6 @@ class AuthController {
    */
   async signin(req, res, next) {
     try {
-      // Validar request
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ 
@@ -18,10 +16,10 @@ class AuthController {
         });
       }
       
-      const { username, password } = req.body;
+      const { username, password, warehouse } = req.body; // NUEVO: Recibir bodega
       
-      // Autenticar usuario
-      const result = await authService.authenticate(username, password);
+      // Autenticar usuario con bodega
+      const result = await authService.authenticate(username, password, warehouse);
       
       res.json(result);
       
@@ -43,9 +41,9 @@ class AuthController {
   async createUserForEmployee(req, res, next) {
     try {
       const { employeeId } = req.params;
+      const { warehouse } = req.body; // NUEVO: Recibir bodega opcional
       
-      // Crear usuario
-      const result = await authService.createUserForEmployee(employeeId);
+      const result = await authService.createUserForEmployee(employeeId, warehouse);
       
       res.status(201).json(result);
       
@@ -107,7 +105,6 @@ class AuthController {
   
   /**
    * POST /auth/logout - Cerrar sesión
-   * En JWT stateless, logout es del lado del cliente
    */
   async logout(req, res) {
     res.json({ 
@@ -129,7 +126,6 @@ class AuthController {
   
   /**
    * POST /auth/generate-hash - Generar hash de contraseña (para testing)
-   * Solo en desarrollo
    */
   async generateHash(req, res, next) {
     try {
@@ -163,14 +159,14 @@ class AuthController {
    * GET /auth/validate-token - Validar token actual
    */
   async validateToken(req, res) {
-    // Si llegó aquí, el token es válido (pasó por authenticate middleware)
     res.json({
       valid: true,
       user: {
         id: req.user.id,
         username: req.user.username,
         email: req.user.email,
-        role: req.user.role
+        role: req.user.role,
+        warehouse: req.user.warehouse // NUEVO: Incluir bodega
       }
     });
   }

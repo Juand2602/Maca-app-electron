@@ -205,6 +205,8 @@ config/secrets.json
 # Archivos de migración temporal
 migrations/temp/
 
+backend/uploads/
+
 # =====================================================
 # Mantener estas carpetas con archivos .gitkeep
 # =====================================================

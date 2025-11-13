@@ -85,7 +85,10 @@
     ],
     "asarUnpack": [
       "node_modules/electron-updater/**/*",
-      "backend/**/*"
+      "backend/**/*",
+      "backend/node_modules/@prisma/**/*",
+      "backend/node_modules/.prisma/**/*",
+      "backend/node_modules/prisma/**/*"
     ],
     "publish": {
       "provider": "github",

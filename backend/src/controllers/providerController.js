@@ -18,12 +18,13 @@ class ProviderController {
         });
       }
       
-      const provider = await providerService.createProvider(req.body);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const provider = await providerService.createProvider(req.body, warehouse);
       
       res.status(201).json(provider);
       
     } catch (error) {
-      if (error.message === 'El documento del proveedor ya existe') {
+      if (error.message.includes('ya existe')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -45,15 +46,16 @@ class ProviderController {
       }
       
       const { id } = req.params;
-      const provider = await providerService.updateProvider(id, req.body);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const provider = await providerService.updateProvider(id, req.body, warehouse);
       
       res.json(provider);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado') {
+      if (error.message === 'Proveedor no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
-      if (error.message === 'El documento del proveedor ya existe') {
+      if (error.message.includes('ya existe')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -66,12 +68,13 @@ class ProviderController {
   async getProviderById(req, res, next) {
     try {
       const { id } = req.params;
-      const provider = await providerService.getProviderById(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const provider = await providerService.getProviderById(id, warehouse);
       
       res.json(provider);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado') {
+      if (error.message === 'Proveedor no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -84,12 +87,13 @@ class ProviderController {
   async getProviderByDocument(req, res, next) {
     try {
       const { document } = req.params;
-      const provider = await providerService.getProviderByDocument(document);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const provider = await providerService.getProviderByDocument(document, warehouse);
       
       res.json(provider);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado') {
+      if (error.message === 'Proveedor no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -101,7 +105,8 @@ class ProviderController {
    */
   async getAllProviders(req, res, next) {
     try {
-      const providers = await providerService.getAllProviders();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const providers = await providerService.getAllProviders(warehouse);
       res.json(providers);
     } catch (error) {
       next(error);
@@ -115,8 +120,9 @@ class ProviderController {
     try {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
       
-      const result = await providerService.getAllProvidersPaginated(page, limit);
+      const result = await providerService.getAllProvidersPaginated(page, limit, warehouse);
       
       res.json(result);
     } catch (error) {
@@ -129,7 +135,8 @@ class ProviderController {
    */
   async getActiveProviders(req, res, next) {
     try {
-      const providers = await providerService.getActiveProviders();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const providers = await providerService.getActiveProviders(warehouse);
       res.json(providers);
     } catch (error) {
       next(error);
@@ -149,7 +156,8 @@ class ProviderController {
         });
       }
       
-      const providers = await providerService.searchProviders(q.trim());
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const providers = await providerService.searchProviders(q.trim(), warehouse);
       res.json(providers);
       
     } catch (error) {
@@ -162,7 +170,8 @@ class ProviderController {
    */
   async getAllCities(req, res, next) {
     try {
-      const cities = await providerService.getAllCities();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const cities = await providerService.getAllCities(warehouse);
       res.json(cities);
     } catch (error) {
       next(error);
@@ -174,7 +183,8 @@ class ProviderController {
    */
   async getAllCountries(req, res, next) {
     try {
-      const countries = await providerService.getAllCountries();
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const countries = await providerService.getAllCountries(warehouse);
       res.json(countries);
     } catch (error) {
       next(error);
@@ -188,12 +198,13 @@ class ProviderController {
   async deleteProvider(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await providerService.deleteProvider(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await providerService.deleteProvider(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado') {
+      if (error.message === 'Proveedor no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);
@@ -207,12 +218,13 @@ class ProviderController {
   async activateProvider(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await providerService.activateProvider(id);
+      const warehouse = req.warehouse || req.user.warehouse; // NUEVO: Obtener bodega
+      const result = await providerService.activateProvider(id, warehouse);
       
       res.json(result);
       
     } catch (error) {
-      if (error.message === 'Proveedor no encontrado') {
+      if (error.message === 'Proveedor no encontrado en esta bodega') {
         return res.status(404).json({ error: error.message });
       }
       next(error);

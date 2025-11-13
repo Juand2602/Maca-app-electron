@@ -1,4 +1,3 @@
-    // backend/src/services/authService.js
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../middleware/auth');
 const prisma = require('../config/database');
@@ -6,9 +5,9 @@ const prisma = require('../config/database');
 class AuthService {
   
   /**
-   * Autenticar usuario con username/email y password
+   * Autenticar usuario con username/email, password y bodega
    */
-  async authenticate(username, password) {
+  async authenticate(username, password, warehouse = 'San Francisco') {
     // Buscar usuario por username o email
     const user = await prisma.user.findFirst({
       where: {
@@ -35,14 +34,17 @@ class AuthService {
       throw new Error('Credenciales inválidas');
     }
     
-    // Actualizar último login
+    // Actualizar último login y bodega
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: new Date() }
+      data: { 
+        lastLogin: new Date(),
+        warehouse: warehouse // Guardar la bodega seleccionada
+      }
     });
     
-    // Generar token JWT
-    const token = generateToken(user);
+    // Generar token JWT (incluye bodega en el payload)
+    const token = generateToken({ ...user, warehouse });
     
     // Retornar respuesta
     return {
@@ -51,15 +53,15 @@ class AuthService {
       username: user.username,
       fullName: user.fullName,
       role: user.role,
-      email: user.email
+      email: user.email,
+      warehouse: warehouse // Incluir bodega en la respuesta
     };
   }
   
   /**
    * Crear usuario para un empleado existente (solo ADMIN)
    */
-  async createUserForEmployee(employeeId) {
-    // Buscar empleado
+  async createUserForEmployee(employeeId, warehouse = 'San Francisco') {
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(employeeId) },
       include: { user: true }
@@ -69,12 +71,10 @@ class AuthService {
       throw new Error(`Empleado no encontrado con ID: ${employeeId}`);
     }
     
-    // Verificar si el empleado ya tiene un usuario
     if (employee.user) {
       throw new Error('El empleado ya tiene un usuario de sistema asociado');
     }
     
-    // Verificar si ya existe un usuario con el mismo email
     const existingUser = await prisma.user.findUnique({
       where: { email: employee.email }
     });
@@ -83,12 +83,9 @@ class AuthService {
       throw new Error(`Ya existe un usuario con el email: ${employee.email}`);
     }
     
-    // Hash de contraseña temporal (usar documento del empleado)
     const hashedPassword = await bcrypt.hash(employee.document, 10);
     
-    // Crear usuario en una transacción
     const newUser = await prisma.$transaction(async (tx) => {
-      // Crear usuario
       const user = await tx.user.create({
         data: {
           username: employee.email,
@@ -96,6 +93,7 @@ class AuthService {
           email: employee.email,
           fullName: `${employee.firstName} ${employee.lastName}`,
           role: 'EMPLOYEE',
+          warehouse: warehouse, // Asignar bodega al crear usuario
           employeeId: employee.id
         }
       });
@@ -103,7 +101,6 @@ class AuthService {
       return user;
     });
     
-    // Generar token
     const token = generateToken(newUser);
     
     return {
@@ -112,7 +109,8 @@ class AuthService {
       username: newUser.username,
       fullName: newUser.fullName,
       role: newUser.role,
-      email: newUser.email
+      email: newUser.email,
+      warehouse: newUser.warehouse
     };
   }
   
@@ -128,6 +126,7 @@ class AuthService {
         email: true,
         fullName: true,
         role: true,
+        warehouse: true, // Incluir bodega
         isActive: true,
         lastLogin: true,
         createdAt: true,
@@ -162,6 +161,7 @@ class AuthService {
         email: true,
         fullName: true,
         role: true,
+        warehouse: true, // Incluir bodega
         isActive: true,
         lastLogin: true,
         createdAt: true
@@ -179,7 +179,6 @@ class AuthService {
    * Cambiar contraseña
    */
   async changePassword(userId, oldPassword, newPassword) {
-    // Obtener usuario con contraseña
     const user = await prisma.user.findUnique({
       where: { id: parseInt(userId) }
     });
@@ -188,17 +187,14 @@ class AuthService {
       throw new Error('Usuario no encontrado');
     }
     
-    // Verificar contraseña actual
     const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
     
     if (!isPasswordValid) {
       throw new Error('Contraseña actual incorrecta');
     }
     
-    // Hash nueva contraseña
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     
-    // Actualizar contraseña
     await prisma.user.update({
       where: { id: parseInt(userId) },
       data: { password: hashedPassword }
