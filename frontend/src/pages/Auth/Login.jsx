@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { Eye, EyeOff, User, Lock, Warehouse } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import toast from "react-hot-toast";
+import { getAssetPath } from '../../utils/getAssetPath'
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);

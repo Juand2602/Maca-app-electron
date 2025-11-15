@@ -12,6 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
+import { getAssetPath } from '../../utils/getAssetPath'
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
