@@ -81,6 +81,10 @@
       {
         "from": "database",
         "to": "database"
+      },
+      {
+        "from": "frontend/public/logo-maca.png",
+        "to": "frontend/dist/logo-maca.png"
       }
     ],
     "asarUnpack": [

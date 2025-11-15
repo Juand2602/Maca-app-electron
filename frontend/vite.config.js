@@ -1,3 +1,4 @@
+// frontend/vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
@@ -11,12 +12,20 @@ export default defineConfig({
     assetsDir: 'assets',
     emptyOutDir: true,
     sourcemap: false,
+    // IMPORTANTE: Copiar archivos de public al dist
+    copyPublicDir: true,
     rollupOptions: {
       output: {
         manualChunks: undefined,
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
+        assetFileNames: (assetInfo) => {
+          // Mantener el logo en la raíz del dist
+          if (assetInfo.name === 'logo-maca.png') {
+            return '[name].[ext]'
+          }
+          return 'assets/[name]-[hash].[ext]'
+        }
       },
     },
   },
@@ -46,4 +55,6 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'axios', 'zustand'],
   },
+  // Asegurar que los archivos estáticos se copien
+  publicDir: 'public'
 })
