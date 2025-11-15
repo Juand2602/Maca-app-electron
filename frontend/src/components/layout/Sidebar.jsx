@@ -88,9 +88,9 @@ const Sidebar = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <img 
-                src="/logo-maca.png" 
-                alt="MACA Logo" 
+              <img
+                src={getAssetPath("logo-maca.png")}
+                alt="MACA Logo"
                 className="h-10 w-auto filter brightness-0 invert"
               />
             </div>

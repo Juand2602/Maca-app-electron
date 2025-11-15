@@ -10,8 +10,8 @@ export const getAssetPath = (path) => {
                      navigator.userAgent.toLowerCase().indexOf(' electron/') > -1;
   
   if (isElectron) {
-    // En Electron, usar ruta absoluta desde resources
-    return `file://${__dirname}/${path}`;
+    // En Electron, necesitamos usar una ruta relativa desde el directorio raíz
+    return `./${path}`;
   }
   
   // En navegador, usar ruta relativa normal

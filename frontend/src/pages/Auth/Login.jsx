@@ -1,39 +1,39 @@
 // src/pages/Auth/Login.jsx
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom' 
-import { useForm } from 'react-hook-form'
-import { Eye, EyeOff, User, Lock, Warehouse } from 'lucide-react'
-import { useAuthStore } from '../../store/authStore'
-import toast from 'react-hot-toast'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { Eye, EyeOff, User, Lock, Warehouse } from "lucide-react";
+import { useAuthStore } from "../../store/authStore";
+import toast from "react-hot-toast";
 
 const Login = () => {
-  const [showPassword, setShowPassword] = useState(false)
-  const { login, isLoading, error } = useAuthStore()
-  
-  const navigate = useNavigate() 
-  
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, isLoading, error } = useAuthStore();
+
+  const navigate = useNavigate();
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm({
     defaultValues: {
-      username: '',
-      password: '',
-      warehouse: 'San Francisco',
-    }
-  })
+      username: "",
+      password: "",
+      warehouse: "San Francisco",
+    },
+  });
 
   const onSubmit = async (data) => {
-    const { username, password, warehouse } = data
-    
-    const result = await login({ username, password, warehouse })
-    
+    const { username, password, warehouse } = data;
+
+    const result = await login({ username, password, warehouse });
+
     if (result.success) {
-      toast.success('¡Inicio de sesión exitoso!')
-      navigate('/') 
+      toast.success("¡Inicio de sesión exitoso!");
+      navigate("/");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4 sm:px-6 lg:px-8">
@@ -41,9 +41,9 @@ const Login = () => {
         {/* Logo y título */}
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <img 
-              src="/logo-maca.png" 
-              alt="MACA Logo" 
+            <img
+              src={getAssetPath("logo-maca.png")}
+              alt="MACA Logo"
               className="h-20 w-auto"
             />
           </div>
@@ -58,10 +58,12 @@ const Login = () => {
         {/* Formulario */}
         <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-200">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            
             {/* Usuario */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Usuario
               </label>
               <div className="relative">
@@ -69,27 +71,34 @@ const Login = () => {
                   <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  {...register('username', {
-                    required: 'El usuario es requerido',
+                  {...register("username", {
+                    required: "El usuario es requerido",
                     minLength: {
                       value: 3,
-                      message: 'El usuario debe tener al menos 3 caracteres'
-                    }
+                      message: "El usuario debe tener al menos 3 caracteres",
+                    },
                   })}
                   type="text"
-                  className={`input pl-10 ${errors.username ? 'input-error' : ''}`}
+                  className={`input pl-10 ${
+                    errors.username ? "input-error" : ""
+                  }`}
                   placeholder="Ingresa tu usuario"
                   autoComplete="username"
                 />
               </div>
               {errors.username && (
-                <p className="mt-1 text-sm text-danger-600">{errors.username.message}</p>
+                <p className="mt-1 text-sm text-danger-600">
+                  {errors.username.message}
+                </p>
               )}
             </div>
 
             {/* Contraseña */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Contraseña
               </label>
               <div className="relative">
@@ -97,15 +106,17 @@ const Login = () => {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  {...register('password', {
-                    required: 'La contraseña es requerida',
+                  {...register("password", {
+                    required: "La contraseña es requerida",
                     minLength: {
                       value: 4,
-                      message: 'La contraseña debe tener al menos 4 caracteres'
-                    }
+                      message: "La contraseña debe tener al menos 4 caracteres",
+                    },
                   })}
-                  type={showPassword ? 'text' : 'password'}
-                  className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
+                  type={showPassword ? "text" : "password"}
+                  className={`input pl-10 pr-10 ${
+                    errors.password ? "input-error" : ""
+                  }`}
                   placeholder="Ingresa tu contraseña"
                   autoComplete="current-password"
                 />
@@ -122,26 +133,33 @@ const Login = () => {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-danger-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-danger-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
             {/* Bodega - Selector */}
             <div>
-              <label htmlFor="warehouse" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="warehouse"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Bodega
               </label>
               <select
-                {...register('warehouse', {
-                  required: 'La bodega es requerida'
+                {...register("warehouse", {
+                  required: "La bodega es requerida",
                 })}
-                className={`input ${errors.warehouse ? 'input-error' : ''}`}
+                className={`input ${errors.warehouse ? "input-error" : ""}`}
               >
                 <option value="San Francisco">San Francisco</option>
                 <option value="Centro">Centro</option>
               </select>
               {errors.warehouse && (
-                <p className="mt-1 text-sm text-danger-600">{errors.warehouse.message}</p>
+                <p className="mt-1 text-sm text-danger-600">
+                  {errors.warehouse.message}
+                </p>
               )}
             </div>
 
@@ -156,7 +174,9 @@ const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className={`btn btn-primary w-full py-3 text-base ${isLoading ? 'btn-disabled' : ''}`}
+              className={`btn btn-primary w-full py-3 text-base ${
+                isLoading ? "btn-disabled" : ""
+              }`}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -164,7 +184,7 @@ const Login = () => {
                   Iniciando sesión...
                 </div>
               ) : (
-                'INGRESAR'
+                "INGRESAR"
               )}
             </button>
           </form>
@@ -179,7 +199,7 @@ const Login = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Login
+export default Login;

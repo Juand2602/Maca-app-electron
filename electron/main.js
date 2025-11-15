@@ -24,78 +24,78 @@ autoUpdater.autoInstallOnAppQuit = true;
 
 // Logger
 autoUpdater.logger = {
-  info: (msg) => log.info('[AutoUpdater]', msg),
-  warn: (msg) => log.warn('[AutoUpdater]', msg),
-  error: (msg) => log.error('[AutoUpdater]', msg),
-  debug: (msg) => log.debug('[AutoUpdater]', msg),
+  info: (msg) => log.info("[AutoUpdater]", msg),
+  warn: (msg) => log.warn("[AutoUpdater]", msg),
+  error: (msg) => log.error("[AutoUpdater]", msg),
+  debug: (msg) => log.debug("[AutoUpdater]", msg),
 };
 
 // ============= EVENTOS AUTO-UPDATER (SIMPLIFICADOS) =============
 
-autoUpdater.on('checking-for-update', () => {
-  log.info('🔍 Verificando actualizaciones...');
+autoUpdater.on("checking-for-update", () => {
+  log.info("🔍 Verificando actualizaciones...");
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'checking',
-      message: 'Buscando actualizaciones...'
+    mainWindow.webContents.send("update-status", {
+      status: "checking",
+      message: "Buscando actualizaciones...",
     });
   }
 });
 
-autoUpdater.on('update-available', (info) => {
-  log.info('✅ Actualización disponible:', info.version);
+autoUpdater.on("update-available", (info) => {
+  log.info("✅ Actualización disponible:", info.version);
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'available',
+    mainWindow.webContents.send("update-status", {
+      status: "available",
       message: `Nueva versión ${info.version} disponible`,
-      version: info.version
+      version: info.version,
     });
   }
 });
 
-autoUpdater.on('update-not-available', (info) => {
-  log.info('ℹ️ No hay actualizaciones disponibles');
+autoUpdater.on("update-not-available", (info) => {
+  log.info("ℹ️ No hay actualizaciones disponibles");
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'not-available',
-      message: 'La aplicación está actualizada'
+    mainWindow.webContents.send("update-status", {
+      status: "not-available",
+      message: "La aplicación está actualizada",
     });
   }
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
+autoUpdater.on("download-progress", (progressObj) => {
   const message = `Descargando: ${Math.round(progressObj.percent)}%`;
   log.info(message);
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'downloading',
+    mainWindow.webContents.send("update-status", {
+      status: "downloading",
       message,
       percent: progressObj.percent,
       bytesPerSecond: progressObj.bytesPerSecond,
       transferred: progressObj.transferred,
-      total: progressObj.total
+      total: progressObj.total,
     });
   }
 });
 
-autoUpdater.on('update-downloaded', (info) => {
-  log.info('✅ Actualización descargada:', info.version);
+autoUpdater.on("update-downloaded", (info) => {
+  log.info("✅ Actualización descargada:", info.version);
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'downloaded',
-      message: 'Actualización lista para instalar',
-      version: info.version
+    mainWindow.webContents.send("update-status", {
+      status: "downloaded",
+      message: "Actualización lista para instalar",
+      version: info.version,
     });
   }
 });
 
-autoUpdater.on('error', (error) => {
-  log.error('❌ Error en auto-updater:', error);
+autoUpdater.on("error", (error) => {
+  log.error("❌ Error en auto-updater:", error);
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', {
-      status: 'error',
-      message: 'Error al verificar actualizaciones',
-      error: error.message
+    mainWindow.webContents.send("update-status", {
+      status: "error",
+      message: "Error al verificar actualizaciones",
+      error: error.message,
     });
   }
 });
@@ -104,126 +104,131 @@ autoUpdater.on('error', (error) => {
 
 function getNodeExecutable() {
   const isDev = !app.isPackaged;
-  
+
   if (isDev) {
-    return process.platform === 'win32' ? 'node' : 'node';
+    return process.platform === "win32" ? "node" : "node";
   }
-  
-  const nodePath = path.join(process.resourcesPath, 'node', 'node.exe');
-  log.info('Looking for Node.js at:', nodePath);
-  
+
+  const nodePath = path.join(process.resourcesPath, "node", "node.exe");
+  log.info("Looking for Node.js at:", nodePath);
+
   if (fs.existsSync(nodePath)) {
-    log.info('✅ Node.js portable found');
+    log.info("✅ Node.js portable found");
     return nodePath;
   }
-  
-  log.error('❌ Node.js portable NOT found');
-  log.info('Trying system Node.js as fallback...');
-  return 'node';
+
+  log.error("❌ Node.js portable NOT found");
+  log.info("Trying system Node.js as fallback...");
+  return "node";
 }
 
 function getBackendPath() {
   const isDev = !app.isPackaged;
-  
+
   if (isDev) {
     return path.join(__dirname, "../backend/src/app.js");
   }
-  
-  const backendPath = path.join(process.resourcesPath, "backend", "src", "app.js");
-  log.info('Backend path:', backendPath);
-  
+
+  const backendPath = path.join(
+    process.resourcesPath,
+    "backend",
+    "src",
+    "app.js"
+  );
+  log.info("Backend path:", backendPath);
+
   if (!fs.existsSync(backendPath)) {
-    log.error('❌ Backend not found at:', backendPath);
+    log.error("❌ Backend not found at:", backendPath);
     throw new Error(`Backend no encontrado: ${backendPath}`);
   }
-  
+
   return backendPath;
 }
 
 function getDatabasePath() {
   const isDev = !app.isPackaged;
-  
-  log.info('='.repeat(60));
-  log.info('DATABASE CONFIGURATION');
-  log.info('='.repeat(60));
-  log.info('Environment:', isDev ? 'DEVELOPMENT' : 'PRODUCTION');
-  log.info('Is packaged:', app.isPackaged);
-  
+
+  log.info("=".repeat(60));
+  log.info("DATABASE CONFIGURATION");
+  log.info("=".repeat(60));
+  log.info("Environment:", isDev ? "DEVELOPMENT" : "PRODUCTION");
+  log.info("Is packaged:", app.isPackaged);
+
   if (isDev) {
     const dbDir = path.join(__dirname, "../backend/database");
     const dbPath = path.join(dbDir, "calzado.db");
-    
+
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
-    
-    log.info('Using development database');
-    log.info('Path:', dbPath);
-    log.info('Exists:', fs.existsSync(dbPath));
-    
+
+    log.info("Using development database");
+    log.info("Path:", dbPath);
+    log.info("Exists:", fs.existsSync(dbPath));
+
     return dbPath;
   }
-  
-  const userDataPath = app.getPath('userData');
-  const dbDir = path.join(userDataPath, 'database');
-  const dbPath = path.join(dbDir, 'calzado.db');
-  
-  log.info('Using production database');
-  log.info('User data path:', userDataPath);
-  log.info('Database directory:', dbDir);
-  log.info('Database file:', dbPath);
-  
+
+  const userDataPath = app.getPath("userData");
+  const dbDir = path.join(userDataPath, "database");
+  const dbPath = path.join(dbDir, "calzado.db");
+
+  log.info("Using production database");
+  log.info("User data path:", userDataPath);
+  log.info("Database directory:", dbDir);
+  log.info("Database file:", dbPath);
+
   if (!fs.existsSync(dbDir)) {
-    log.info('Creating database directory...');
+    log.info("Creating database directory...");
     try {
       fs.mkdirSync(dbDir, { recursive: true });
-      log.info('✅ Directory created');
+      log.info("✅ Directory created");
     } catch (error) {
-      log.error('❌ Failed to create directory:', error);
+      log.error("❌ Failed to create directory:", error);
       throw error;
     }
   }
-  
+
   if (!fs.existsSync(dbPath)) {
-    log.info('Database file does not exist, creating empty file...');
+    log.info("Database file does not exist, creating empty file...");
     try {
-      fs.writeFileSync(dbPath, '');
-      log.info('✅ Empty database file created');
+      fs.writeFileSync(dbPath, "");
+      log.info("✅ Empty database file created");
     } catch (error) {
-      log.error('❌ Failed to create database file:', error);
+      log.error("❌ Failed to create database file:", error);
       throw error;
     }
   } else {
     try {
       const stats = fs.statSync(dbPath);
       const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-      log.info('✅ Database file exists');
-      log.info('Size:', sizeMB, 'MB');
-      log.info('Last modified:', stats.mtime.toISOString());
+      log.info("✅ Database file exists");
+      log.info("Size:", sizeMB, "MB");
+      log.info("Last modified:", stats.mtime.toISOString());
     } catch (error) {
-      log.warn('Could not read database stats:', error.message);
+      log.warn("Could not read database stats:", error.message);
     }
   }
-  
+
   try {
     fs.accessSync(dbPath, fs.constants.R_OK | fs.constants.W_OK);
-    log.info('✅ Read/Write permissions OK');
+    log.info("✅ Read/Write permissions OK");
   } catch (error) {
-    log.error('❌ Permission error:', error);
+    log.error("❌ Permission error:", error);
   }
-  
-  log.info('='.repeat(60));
-  
+
+  log.info("=".repeat(60));
+
   return dbPath;
 }
 
 function getBackendNodeModules() {
   const isDev = !app.isPackaged;
-  
+
   if (isDev) {
     return path.join(__dirname, "../backend/node_modules");
   }
-  
+
   return path.join(process.resourcesPath, "backend", "node_modules");
 }
 
@@ -231,70 +236,73 @@ function getBackendNodeModules() {
 
 async function initializeDatabase() {
   const isDev = !app.isPackaged;
-  
+
   if (isDev) {
     log.info("Development mode - skipping database initialization");
     return;
   }
-  
+
   log.info("🗄️ Initializing database...");
-  
+
   try {
     const databasePath = getDatabasePath();
     const backendDir = path.join(process.resourcesPath, "backend");
     const nodeModulesPath = getBackendNodeModules();
     const schemaPath = path.join(backendDir, "prisma", "schema.prisma");
-    
+
     if (!fs.existsSync(schemaPath)) {
       log.error("❌ Prisma schema not found at:", schemaPath);
       return;
     }
-    
+
     log.info("Found Prisma schema at:", schemaPath);
-    
-    const normalizedDbPath = databasePath.replace(/\\/g, '/');
-    
+
+    const normalizedDbPath = databasePath.replace(/\\/g, "/");
+
     const env = {
       ...process.env,
       DATABASE_URL: `file:${normalizedDbPath}`,
       NODE_PATH: nodeModulesPath,
-      PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+      PATH: `${path.join(nodeModulesPath, ".bin")}${path.delimiter}${
+        process.env.PATH
+      }`,
     };
-    
+
     log.info("DATABASE_URL for migrations:", env.DATABASE_URL);
-    
-    const { execSync } = require('child_process');
+
+    const { execSync } = require("child_process");
     const nodeExe = getNodeExecutable();
-    const prismaBin = path.join(nodeModulesPath, '.bin', 'prisma');
-    
-    const prismaExists = fs.existsSync(prismaBin) || fs.existsSync(prismaBin + '.cmd');
+    const prismaBin = path.join(nodeModulesPath, ".bin", "prisma");
+
+    const prismaExists =
+      fs.existsSync(prismaBin) || fs.existsSync(prismaBin + ".cmd");
     if (!prismaExists) {
       log.error("❌ Prisma CLI not found");
       return;
     }
-    
+
     log.info("Applying database migrations...");
-    
+
     const migrateCmd = `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`;
-    
+
     try {
       execSync(migrateCmd, {
         cwd: backendDir,
         env: env,
-        encoding: 'utf8',
-        stdio: 'pipe'
+        encoding: "utf8",
+        stdio: "pipe",
       });
-      
+
       log.info("✅ Database migrations applied");
     } catch (migrateError) {
       log.error("❌ Migration failed:", migrateError.message);
       throw migrateError;
     }
-    
-    const seedPath = path.join(backendDir, 'prisma', 'seed.js');
+
+    const seedPath = path.join(backendDir, "prisma", "seed.js");
     if (fs.existsSync(seedPath)) {
       log.info("Checking if database needs seeding...");
-      
+
       const checkScript = `
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient({
@@ -312,33 +320,33 @@ prisma.user.count()
   })
   .then(() => process.exit(1));
 `;
-      
-      const tempFile = path.join(backendDir, 'temp-check.js');
+
+      const tempFile = path.join(backendDir, "temp-check.js");
       fs.writeFileSync(tempFile, checkScript);
-      
+
       try {
         const result = execSync(`"${nodeExe}" "${tempFile}"`, {
           cwd: backendDir,
           env: env,
-          encoding: 'utf8',
-          stdio: 'pipe'
+          encoding: "utf8",
+          stdio: "pipe",
         });
-        
+
         const userCount = parseInt(result.trim());
         log.info("User count:", userCount);
-        
+
         fs.unlinkSync(tempFile);
-        
+
         if (userCount === 0) {
           log.info("Running database seed...");
-          
+
           execSync(`"${nodeExe}" "${seedPath}"`, {
             cwd: backendDir,
             env: env,
-            encoding: 'utf8',
-            stdio: 'pipe'
+            encoding: "utf8",
+            stdio: "pipe",
           });
-          
+
           log.info("✅ Database seeded");
         } else {
           log.info("✅ Database already has data");
@@ -350,9 +358,8 @@ prisma.user.count()
         log.warn("Seed check/execution failed:", checkError.message);
       }
     }
-    
+
     log.info("✅ Database initialization completed");
-    
   } catch (error) {
     log.error("❌ Database initialization failed:", error.message);
     log.error("Stack trace:", error.stack);
@@ -366,7 +373,7 @@ async function startBackend() {
     log.info("🔧 Starting backend server...");
 
     const isDev = !app.isPackaged;
-    
+
     try {
       const nodeExe = getNodeExecutable();
       const backendScript = getBackendPath();
@@ -379,16 +386,18 @@ async function startBackend() {
       log.info("Node modules:", nodeModulesPath);
 
       const backendDir = path.dirname(backendScript);
-      
-      const normalizedDbPath = databasePath.replace(/\\/g, '/');
-      
+
+      const normalizedDbPath = databasePath.replace(/\\/g, "/");
+
       const env = {
         ...process.env,
         PORT: BACKEND_PORT.toString(),
         NODE_ENV: isDev ? "development" : "production",
         DATABASE_URL: `file:${normalizedDbPath}`,
         NODE_PATH: nodeModulesPath,
-        PATH: `${path.join(nodeModulesPath, '.bin')}${path.delimiter}${process.env.PATH}`
+        PATH: `${path.join(nodeModulesPath, ".bin")}${path.delimiter}${
+          process.env.PATH
+        }`,
       };
 
       log.info("DATABASE_URL:", env.DATABASE_URL);
@@ -397,7 +406,7 @@ async function startBackend() {
         cwd: backendDir,
         env: env,
         stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true
+        windowsHide: true,
       };
 
       if (!isDev) {
@@ -407,16 +416,18 @@ async function startBackend() {
       backendProcess = spawn(nodeExe, [backendScript], spawnOptions);
 
       let backendStarted = false;
-      let errorOutput = '';
+      let errorOutput = "";
 
       backendProcess.stdout.on("data", (data) => {
         const output = data.toString();
         log.info("[Backend]", output);
 
-        if ((output.includes("Server") || 
-             output.includes("listening") || 
-             output.includes("Sistema Calzado API")) && 
-            !backendStarted) {
+        if (
+          (output.includes("Server") ||
+            output.includes("listening") ||
+            output.includes("Sistema Calzado API")) &&
+          !backendStarted
+        ) {
           backendStarted = true;
           log.info("✅ Backend started successfully");
           setTimeout(() => resolve(), 2000);
@@ -436,7 +447,7 @@ async function startBackend() {
 
       backendProcess.on("exit", (code, signal) => {
         log.info(`Backend process exited with code ${code}, signal ${signal}`);
-        
+
         if (code !== 0 && code !== null && !backendStarted) {
           const errorMsg = `Backend cerró con código ${code}.\n\nError:\n${errorOutput}`;
           log.error(errorMsg);
@@ -450,7 +461,6 @@ async function startBackend() {
           resolve();
         }
       }, 15000);
-
     } catch (error) {
       log.error("❌ Exception starting backend:", error);
       reject(error);
@@ -466,10 +476,13 @@ async function waitForBackend() {
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { 
-        timeout: 3000 
-      });
-      
+      const response = await axios.get(
+        `http://localhost:${BACKEND_PORT}/health`,
+        {
+          timeout: 3000,
+        }
+      );
+
       if (response.data.status === "ok") {
         log.info("✅ Backend is ready!");
         log.info("Backend info:", response.data);
@@ -487,17 +500,17 @@ async function waitForBackend() {
 function stopBackend() {
   if (backendProcess && !backendProcess.killed) {
     log.info("🛑 Stopping backend...");
-    
-    if (process.platform === 'win32') {
+
+    if (process.platform === "win32") {
       try {
-        spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
+        spawn("taskkill", ["/pid", backendProcess.pid, "/f", "/t"]);
       } catch (e) {
         log.error("Error killing backend:", e);
       }
     } else {
-      backendProcess.kill('SIGTERM');
+      backendProcess.kill("SIGTERM");
     }
-    
+
     backendProcess = null;
   }
 }
@@ -514,7 +527,8 @@ function createSplashWindow() {
     webPreferences: { nodeIntegration: false },
   });
 
-  splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+  splash.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -560,7 +574,8 @@ function createSplashWindow() {
       </div>
     </body>
     </html>
-  `)}`);
+  `)}`
+  );
 
   return splash;
 }
@@ -570,7 +585,7 @@ function createMainWindow() {
     width: 1400,
     height: 900,
     show: true,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -578,7 +593,7 @@ function createMainWindow() {
       preload: path.join(__dirname, "preload.js"),
       webSecurity: true,
       allowRunningInsecureContent: false,
-      devTools: true
+      devTools: true,
     },
   });
 
@@ -590,7 +605,7 @@ function createMainWindow() {
   log.info("📂 Loading:", startUrl);
   log.info("   Is dev:", isDev);
   log.info("   __dirname:", __dirname);
-  
+
   if (!isDev) {
     const indexPath = path.join(__dirname, "../frontend/dist/index.html");
     if (!fs.existsSync(indexPath)) {
@@ -599,51 +614,57 @@ function createMainWindow() {
       log.info("✅ index.html found at:", indexPath);
     }
   }
-  
-  mainWindow.loadURL(startUrl).catch(err => {
+
+  mainWindow.loadURL(startUrl).catch((err) => {
     log.error("Failed to load URL:", err);
   });
 
-  mainWindow.webContents.on('did-start-loading', () => {
+  mainWindow.webContents.on("did-start-loading", () => {
     log.info("🔄 Started loading...");
   });
 
-  mainWindow.webContents.on('did-stop-loading', () => {
+  mainWindow.webContents.on("did-stop-loading", () => {
     log.info("⏹️ Stopped loading");
   });
 
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    log.error('❌ Page failed to load:', {
-      errorCode,
-      errorDescription,
-      validatedURL
-    });
-    
-    if (!mainWindow.webContents.isDevToolsOpened()) {
-      mainWindow.webContents.openDevTools();
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (event, errorCode, errorDescription, validatedURL) => {
+      log.error("❌ Page failed to load:", {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+
+      if (!mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.openDevTools();
+      }
     }
+  );
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    log.info("✅ Page finished loading");
   });
 
-  mainWindow.webContents.on('did-finish-load', () => {
-    log.info('✅ Page finished loading');
+  mainWindow.webContents.on("dom-ready", () => {
+    log.info("✅ DOM is ready");
   });
 
-  mainWindow.webContents.on('dom-ready', () => {
-    log.info('✅ DOM is ready');
-  });
-
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    if (level === 2 || level === 3) {
-      log.error(`[Renderer] ${message} (${sourceId}:${line})`);
+  mainWindow.webContents.on(
+    "console-message",
+    (event, level, message, line, sourceId) => {
+      if (level === 2 || level === 3) {
+        log.error(`[Renderer] ${message} (${sourceId}:${line})`);
+      }
     }
-  });
+  );
 
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
-  
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === "i") {
       if (mainWindow.webContents.isDevToolsOpened()) {
         mainWindow.webContents.closeDevTools();
       } else {
@@ -653,8 +674,8 @@ function createMainWindow() {
     }
   });
 
-  mainWindow.on("closed", () => { 
-    mainWindow = null; 
+  mainWindow.on("closed", () => {
+    mainWindow = null;
   });
 
   return mainWindow;
@@ -664,7 +685,7 @@ function createMainWindow() {
 
 async function initializeApp() {
   let splash;
-  
+
   try {
     splash = createSplashWindow();
     log.info("🚀 Initializing...");
@@ -677,17 +698,17 @@ async function initializeApp() {
 
     setTimeout(() => {
       log.info("Closing splash and showing main window");
-      
+
       if (splash && !splash.isDestroyed()) {
         splash.close();
         log.info("✅ Splash closed");
       }
-      
+
       if (!mainWin.isVisible()) {
         mainWin.show();
         log.info("✅ Main window shown");
       }
-      
+
       mainWin.maximize();
       log.info("🎉 Window ready and visible!");
     }, 2000);
@@ -697,7 +718,7 @@ async function initializeApp() {
         log.warn("Splash still open after 5s, forcing close");
         splash.close();
       }
-      
+
       if (!mainWin.isVisible()) {
         log.warn("Window still not visible after 5s, forcing show");
         mainWin.show();
@@ -707,34 +728,33 @@ async function initializeApp() {
 
     // VERIFICAR ACTUALIZACIONES (Solo en producción)
     if (!isDev) {
-      log.info('🚀 Programando verificación de actualizaciones...');
+      log.info("🚀 Programando verificación de actualizaciones...");
       setTimeout(() => {
         autoUpdater.checkForUpdates();
       }, 3000);
     }
-    
   } catch (error) {
     log.error("❌ Init failed:", error);
-    
+
     if (splash && !splash.isDestroyed()) splash.close();
-    
+
     dialog.showErrorBox(
       "Error al iniciar",
       `No se pudo iniciar la aplicación:\n\n${error.message}\n\n` +
-      `Soluciones posibles:\n` +
-      `• Verifica que tienes Node.js instalado (https://nodejs.org)\n` +
-      `• Ejecuta como administrador\n` +
-      `• Desactiva el antivirus temporalmente\n` +
-      `• Reinstala la aplicación`
+        `Soluciones posibles:\n` +
+        `• Verifica que tienes Node.js instalado (https://nodejs.org)\n` +
+        `• Ejecuta como administrador\n` +
+        `• Desactiva el antivirus temporalmente\n` +
+        `• Reinstala la aplicación`
     );
-    
+
     app.quit();
   }
 }
 
 // ============= EVENTS =============
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
 app.whenReady().then(initializeApp);
 
@@ -757,7 +777,10 @@ ipcMain.handle("is-electron", () => {
 
 ipcMain.handle("check-backend-status", async () => {
   try {
-    const response = await axios.get(`http://localhost:${BACKEND_PORT}/health`, { timeout: 2000 });
+    const response = await axios.get(
+      `http://localhost:${BACKEND_PORT}/health`,
+      { timeout: 2000 }
+    );
     return response.data.status === "ok";
   } catch (error) {
     return false;
@@ -774,22 +797,22 @@ ipcMain.handle("get-app-version", () => {
 
 // ============= IPC EVENTS (ESTILO BARBERÍA) =============
 
-ipcMain.on('check-for-updates', () => {
+ipcMain.on("check-for-updates", () => {
   if (!isDev) {
-    log.info('🔍 Verificando actualizaciones...');
+    log.info("🔍 Verificando actualizaciones...");
     autoUpdater.checkForUpdates();
   } else {
-    log.warn('Actualizaciones no disponibles en desarrollo');
+    log.warn("Actualizaciones no disponibles en desarrollo");
   }
 });
 
-ipcMain.on('download-update', () => {
-  log.info('⬇️ Descargando actualización...');
+ipcMain.on("download-update", () => {
+  log.info("⬇️ Descargando actualización...");
   autoUpdater.downloadUpdate();
 });
 
-ipcMain.on('install-update', () => {
-  log.info('🔄 Instalando actualización...');
+ipcMain.on("install-update", () => {
+  log.info("🔄 Instalando actualización...");
   autoUpdater.quitAndInstall(false, true);
 });
 

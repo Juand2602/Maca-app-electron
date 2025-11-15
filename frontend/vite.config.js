@@ -6,7 +6,7 @@ import { resolve } from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: './',  // Importante para Electron
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
