@@ -15,7 +15,6 @@ const Profile = () => {
     )
   }
 
-  // Formatear la fecha si está disponible
   const formatDate = (dateString) => {
     if (!dateString) return 'No disponible';
     try {
@@ -33,83 +32,94 @@ const Profile = () => {
   }
 
   const handleGoBack = () => {
-    navigate('/dashboard')
+    navigate('/') // CORREGIDO: navega al dashboard principal
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">
-          <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              Mi Perfil
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Información de tu cuenta
-            </p>
-          </div>
-          <button
-            onClick={handleGoBack}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Regresar al menú principal
-          </button>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Mi Perfil</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Información de tu cuenta
+          </p>
         </div>
-        
-        <div className="px-4 py-5 sm:p-6">
-          <div className="flex items-center mb-6">
+        <button
+          onClick={handleGoBack}
+          className="btn btn-secondary"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver al Dashboard
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="card-body">
+          <div className="flex items-center mb-6 pb-6 border-b border-gray-200">
             <div className="h-20 w-20 rounded-full bg-primary-100 flex items-center justify-center">
               <User className="h-10 w-10 text-primary-600" />
             </div>
             <div className="ml-6">
-              <h3 className="text-xl font-medium text-gray-900">
+              <h3 className="text-2xl font-semibold text-gray-900">
                 {user.firstName} {user.lastName}
               </h3>
-              <p className="text-sm text-gray-500 capitalize">
-                {user.role?.toLowerCase()}
+              <p className="text-sm text-gray-500 mt-1 flex items-center">
+                <Shield className="h-4 w-4 mr-1" />
+                <span className="capitalize">{user.role?.toLowerCase()}</span>
               </p>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-6">
-            <div className="flex items-center">
-              <User className="h-5 w-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Nombre de usuario</p>
-                <p className="text-sm text-gray-500">{user.username}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <User className="h-5 w-5 text-gray-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Nombre de usuario</p>
+                <p className="text-base text-gray-900 mt-1">{user.username}</p>
               </div>
             </div>
             
-            <div className="flex items-center">
-              <Mail className="h-5 w-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Correo electrónico</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Correo electrónico</p>
+                <p className="text-base text-gray-900 mt-1">{user.email}</p>
               </div>
             </div>
             
-            <div className="flex items-center">
-              <Building2 className="h-5 w-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Bodega</p>
-                <p className="text-sm text-gray-500">{user.warehouse || 'San Francisco'}</p>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Building2 className="h-5 w-5 text-gray-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Bodega</p>
+                <p className="text-base text-gray-900 mt-1">{user.warehouse || 'San Francisco'}</p>
               </div>
             </div>
             
-            <div className="flex items-center">
-              <Shield className="h-5 w-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Rol</p>
-                <p className="text-sm text-gray-500 capitalize">{user.role?.toLowerCase()}</p>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Shield className="h-5 w-5 text-gray-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Rol del sistema</p>
+                <p className="text-base text-gray-900 mt-1 capitalize">
+                  {user.role === 'ADMIN' ? 'Administrador' : 'Empleado'}
+                </p>
               </div>
             </div>
             
-            <div className="flex items-center">
-              <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Último inicio de sesión</p>
-                <p className="text-sm text-gray-500">
+            <div className="flex items-start md:col-span-2">
+              <div className="flex-shrink-0">
+                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-500">Último inicio de sesión</p>
+                <p className="text-base text-gray-900 mt-1">
                   {user.lastLogin ? formatDate(user.lastLogin) : 'No disponible'}
                 </p>
               </div>

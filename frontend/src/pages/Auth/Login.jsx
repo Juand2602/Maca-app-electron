@@ -1,3 +1,4 @@
+// src/pages/Auth/Login.jsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom' 
 import { useForm } from 'react-hook-form'
@@ -30,16 +31,21 @@ const Login = () => {
     
     if (result.success) {
       toast.success('¡Inicio de sesión exitoso!')
-      navigate('/dashboard') 
+      navigate('/') 
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {/* Logo y título */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary-600 rounded-full flex items-center justify-center shadow-lg">
-            <Warehouse className="h-8 w-8 text-white" />
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/logo-maca.png" 
+              alt="MACA Logo" 
+              className="h-20 w-auto"
+            />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             Sistema Administrativo
@@ -49,9 +55,11 @@ const Login = () => {
           </p>
         </div>
 
+        {/* Formulario */}
         <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-200">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             
+            {/* Usuario */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                 Usuario
@@ -79,6 +87,7 @@ const Login = () => {
               )}
             </div>
 
+            {/* Contraseña */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Contraseña
@@ -136,12 +145,14 @@ const Login = () => {
               )}
             </div>
 
+            {/* Error general */}
             {error && (
               <div className="bg-danger-50 border border-danger-200 rounded-md p-3">
                 <p className="text-sm text-danger-700">{error}</p>
               </div>
             )}
 
+            {/* Botón de login */}
             <button
               type="submit"
               disabled={isLoading}
@@ -159,9 +170,11 @@ const Login = () => {
           </form>
         </div>
 
+        {/* Footer */}
         <div className="text-center">
-          <p className="text-xs text-gray-500">
-            Sistema de Gestión para Empresa de Calzado v1.0.0
+          <p className="text-sm font-semibold text-black">MACA</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Sistema de Gestión para Empresa de Calzado
           </p>
         </div>
       </div>

@@ -41,6 +41,7 @@ export const inventoryService = {
         purchasePrice: productData.costPrice,
         salePrice: productData.salePrice,
         minStock: productData.minStock,
+        imageUrl: productData.imageUrl,
         isActive: true,
         stocks: productData.sizes.map(size => ({
           size: size.size,
@@ -73,6 +74,7 @@ export const inventoryService = {
         material: productData.material,
         purchasePrice: productData.costPrice,
         salePrice: productData.salePrice,
+        imageUrl: productData.imageUrl,
         minStock: productData.minStock,
         isActive: true,
         stocks: productData.sizes.map(size => ({
@@ -162,6 +164,7 @@ export const inventoryService = {
         purchasePrice: product.purchasePrice,
         salePrice: product.salePrice,
         minStock: product.minStock,
+        imageUrl: product.imageUrl,
         isActive: product.isActive,
         stocks: updatedStocks
       }

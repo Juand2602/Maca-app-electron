@@ -58,6 +58,7 @@ const invoiceRoutes = loadRoute('./routes/invoices', '/api/invoices');
 const employeeRoutes = loadRoute('./routes/employees', '/api/employees');
 const dashboardRoutes = loadRoute('./routes/dashboard', '/api/dashboard');
 const uploadRoutes = loadRoute('./routes/upload', '/api/upload'); // NUEVO
+const reportRoutes = loadRoute('./routes/reports', '/api/reports');
 
 // Montar rutas solo si se cargaron correctamente
 if (authRoutes) app.use('/api/auth', authRoutes);
@@ -68,6 +69,7 @@ if (invoiceRoutes) app.use('/api/invoices', invoiceRoutes);
 if (employeeRoutes) app.use('/api/employees', employeeRoutes);
 if (dashboardRoutes) app.use('/api/dashboard', dashboardRoutes);
 if (uploadRoutes) app.use('/api/upload', uploadRoutes); // NUEVO
+if (reportRoutes) app.use('/api/reports', reportRoutes); 
 
 // Health check (sin prefijo /api para facilitar monitoreo)
 app.get('/health', (req, res) => {

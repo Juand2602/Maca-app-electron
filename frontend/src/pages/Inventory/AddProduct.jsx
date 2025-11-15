@@ -226,6 +226,7 @@ const AddProduct = () => {
         costPrice: parseFloat(data.costPrice),
         salePrice: parseFloat(data.salePrice),
         minStock: parseInt(data.minStock),
+        imageUrl: data.imageUrl,
         sizes: validSizes.map((size) => ({
           ...size,
           stock: parseInt(size.stock),

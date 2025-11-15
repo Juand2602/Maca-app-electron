@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { ArrowLeft, Save, X, User, Package } from 'lucide-react'
+import { ArrowLeft, Save, X, User, Package, Percent } from 'lucide-react'
 import { useEmployeesStore } from '../../store/employeesStore'
 import toast from 'react-hot-toast'
+
+// NUEVO: Función para formatear fecha a YYYY-MM-DD
+const formatDateForInput = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // Componente Combobox reutilizable
 const Combobox = ({ value, onChange, options, placeholder, error, disabled }) => {
@@ -116,13 +126,14 @@ const EditEmployee = () => {
             document: employeeData.document || '',
             firstName: employeeData.firstName || '',
             lastName: employeeData.lastName || '',
-            birthDate: employeeData.birthDate || '',
+            birthDate: formatDateForInput(employeeData.birthDate), // CORREGIDO
             email: employeeData.email || '',
             phone: employeeData.phone || '+57 ',
             address: employeeData.address || '',
             city: employeeData.city || '',
-            hireDate: employeeData.hireDate || '',
-            status: employeeData.status || 'ACTIVE'
+            hireDate: formatDateForInput(employeeData.hireDate), // CORREGIDO
+            status: employeeData.status || 'ACTIVE',
+            commissionRate: employeeData.commissionRate || 5.0
           })
           setLoading(false)
         } else {
@@ -148,7 +159,18 @@ const EditEmployee = () => {
         throw new Error('Este email ya está registrado')
       }
 
-      const result = await updateEmployee(id, data)
+      // Validar comisión
+      if (data.commissionRate < 0 || data.commissionRate > 100) {
+        throw new Error('El porcentaje de comisión debe estar entre 0 y 100')
+      }
+
+      // Convertir commissionRate a número
+      const dataToSend = {
+        ...data,
+        commissionRate: parseFloat(data.commissionRate)
+      }
+
+      const result = await updateEmployee(id, dataToSend)
 
       if (result.success) {
         toast.success('Empleado actualizado exitosamente')
@@ -394,6 +416,36 @@ const EditEmployee = () => {
                   <option value="VACATION">Vacaciones</option>
                   <option value="SUSPENDED">Suspendido</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Percent className="inline h-4 w-4 mr-1" />
+                  Porcentaje de Comisión
+                </label>
+                <input
+                  {...register('commissionRate', {
+                    required: 'El porcentaje de comisión es requerido',
+                    min: {
+                      value: 0,
+                      message: 'El valor mínimo es 0'
+                    },
+                    max: {
+                      value: 100,
+                      message: 'El valor máximo es 100'
+                    }
+                  })}
+                  type="number"
+                  step="0.1"
+                  className={`input ${errors.commissionRate ? 'input-error' : ''}`}
+                  placeholder="5.0"
+                />
+                {errors.commissionRate && (
+                  <p className="mt-1 text-sm text-danger-600">{errors.commissionRate.message}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Ejemplo: 5 = 5% de comisión por venta
+                </p>
               </div>
             </div>
           </div>

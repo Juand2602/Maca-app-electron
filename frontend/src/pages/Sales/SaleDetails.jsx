@@ -79,6 +79,22 @@ const SaleDetails = () => {
     return labels[method] || method
   }
 
+  // Función para determinar si es un pago mixto
+  const isMixedPayment = (sale) => {
+    return sale.payments && sale.payments.length > 1
+  }
+
+  // Función para obtener el método de pago principal
+  const getMainPaymentMethod = (sale) => {
+    if (isMixedPayment(sale)) {
+      return 'MIXED'
+    }
+    if (sale.payments && sale.payments.length > 0) {
+      return sale.payments[0].paymentMethod
+    }
+    return 'UNKNOWN'
+  }
+
   const printSale = () => {
     const printContent = generatePrintContent(sale)
     const printWindow = window.open('', '_blank')
@@ -98,7 +114,7 @@ const SaleDetails = () => {
         `).join('')
       : `
           <div class="item">
-            <span>${getPaymentMethodLabel(sale.paymentMethod)}:</span>
+            <span>Pago:</span>
             <span>${formatCurrency(sale.total)}</span>
           </div>
         `
@@ -214,7 +230,7 @@ const SaleDetails = () => {
           </div>
           
           <div class="section">
-            <strong>PAGO${sale.isMixedPayment ? 'S' : ''}:</strong>
+            <strong>PAGO${isMixedPayment(sale) ? 'S' : ''}:</strong>
             <div class="payment-section">
               ${paymentsHtml}
             </div>
@@ -338,13 +354,22 @@ const SaleDetails = () => {
                 <div>
                   <span className="font-medium text-gray-600">Tipo de Pago:</span>
                   <p className="text-gray-900">
-                    {sale.isMixedPayment ? (
+                    {isMixedPayment(sale) ? (
                       <span className="badge badge-warning">
                         <CreditCard className="h-3 w-3 inline mr-1" />
                         Pago Mixto
                       </span>
                     ) : (
-                      getPaymentMethodLabel(sale.paymentMethod)
+                      sale.payments && sale.payments.length > 0 ? (
+                        <span className="badge badge-secondary">
+                          {sale.payments[0].paymentMethod === 'CASH' && <Banknote className="h-3 w-3 inline mr-1" />}
+                          {sale.payments[0].paymentMethod === 'CARD' && <CreditCard className="h-3 w-3 inline mr-1" />}
+                          {sale.payments[0].paymentMethod === 'TRANSFER' && <DollarSign className="h-3 w-3 inline mr-1" />}
+                          {getPaymentMethodLabel(sale.payments[0].paymentMethod)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">No especificado</span>
+                      )
                     )}
                   </p>
                 </div>
@@ -487,7 +512,7 @@ const SaleDetails = () => {
               <div className="border-t border-gray-200 pt-4">
                 <h4 className="font-medium text-gray-900 mb-3 flex items-center">
                   <DollarSign className="h-4 w-4 mr-1" />
-                  Método{sale.isMixedPayment ? 's' : ''} de Pago
+                  Método{isMixedPayment(sale) ? 's' : ''} de Pago
                 </h4>
                 
                 {sale.payments && sale.payments.length > 0 ? (
@@ -525,7 +550,7 @@ const SaleDetails = () => {
                       </div>
                     ))}
                     
-                    {sale.isMixedPayment && (
+                    {isMixedPayment(sale) && (
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
                         <p className="text-sm text-blue-700">
                           <strong>Total pagado:</strong> {formatCurrency(
@@ -539,7 +564,7 @@ const SaleDetails = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">
-                        {getPaymentMethodLabel(sale.paymentMethod)}:
+                        Pago:
                       </span>
                       <span className="font-medium">{formatCurrency(sale.total)}</span>
                     </div>
@@ -579,7 +604,7 @@ const SaleDetails = () => {
                   </span>
                 </div>
               )}
-              {sale.isMixedPayment && (
+              {isMixedPayment(sale) && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Métodos de pago:</span>
                   <span className="font-medium text-blue-600">

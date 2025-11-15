@@ -33,6 +33,7 @@ class ProductService {
           purchasePrice: parseFloat(data.purchasePrice),
           salePrice: parseFloat(data.salePrice),
           minStock: data.minStock || 5,
+          imageUrl: data.imageUrl, 
           warehouse: warehouse, // NUEVO: Asignar bodega
           isActive: data.isActive !== undefined ? data.isActive : true,
           stocks: {
@@ -100,6 +101,7 @@ class ProductService {
           category: data.category,
           color: data.color,
           material: data.material,
+          imageUrl: data.imageUrl,
           purchasePrice: data.purchasePrice ? parseFloat(data.purchasePrice) : undefined,
           salePrice: data.salePrice ? parseFloat(data.salePrice) : undefined,
           minStock: data.minStock,

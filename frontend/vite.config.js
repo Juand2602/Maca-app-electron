@@ -24,6 +24,12 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     host: 'localhost',
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
   },
   resolve: {
     alias: {

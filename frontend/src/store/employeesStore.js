@@ -1,3 +1,4 @@
+// frontend/src/store/employeesStore.js
 import { create } from 'zustand'
 import { 
   getAllEmployees,
@@ -42,6 +43,7 @@ export const useEmployeesStore = create((set, get) => ({
     set({ isLoading: true, error: null })
     
     try {
+      // CORREGIDO: Asegurarse de que el servicio traiga los datos del usuario
       const employees = await getAllEmployees()
       set({ employees, isLoading: false })
       return employees
@@ -266,8 +268,8 @@ export const useEmployeesStore = create((set, get) => ({
           return acc
         }, {}),
         roleCount: {
-          'ADMIN': employees.filter(e => e.username).length,
-          'EMPLOYEE': employees.filter(e => !e.username).length
+          'ADMIN': employees.filter(e => e.user?.role === 'ADMIN').length, // CORREGIDO: Contar por rol de usuario
+          'EMPLOYEE': employees.filter(e => e.user?.role === 'EMPLOYEE').length // CORREGIDO: Contar por rol de usuario
         },
         contractTypeCount: employees.reduce((acc, e) => {
           if (e.contractType) {
@@ -295,8 +297,8 @@ export const useEmployeesStore = create((set, get) => ({
         return acc
       }, {}),
       roleCount: {
-        'ADMIN': employees.filter(e => e.username).length,
-        'EMPLOYEE': employees.filter(e => !e.username).length
+        'ADMIN': employees.filter(e => e.user?.role === 'ADMIN').length, // CORREGIDO: Contar por rol de usuario
+        'EMPLOYEE': employees.filter(e => e.user?.role === 'EMPLOYEE').length // CORREGIDO: Contar por rol de usuario
       },
       contractTypeCount: employees.reduce((acc, e) => {
         if (e.contractType) {
@@ -335,7 +337,7 @@ export const useEmployeesStore = create((set, get) => ({
   getEmployeesByRole: (role) => {
     const { employees } = get()
     return employees.filter(e => 
-      (role === 'ADMIN' ? e.username : !e.username) && 
+      e.user?.role === role && // CORREGIDO: Filtrar por rol de usuario
       e.status === 'ACTIVE'
     )
   },

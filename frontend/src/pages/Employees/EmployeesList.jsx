@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit, 
+// frontend/src/components/EmployeesList.jsx
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  Search,
+  Filter,
+  Plus,
+  Edit,
   Eye,
   Phone,
   Mail,
@@ -17,10 +18,11 @@ import {
   UserCheck,
   UserX,
   Shield,
-  Trash2
-} from 'lucide-react'
-import { useEmployeesStore } from '../../store/employeesStore'
-import toast from 'react-hot-toast'
+  Trash2,
+  Percent,
+} from "lucide-react";
+import { useEmployeesStore } from "../../store/employeesStore";
+import toast from "react-hot-toast";
 
 const EmployeesList = () => {
   const {
@@ -33,114 +35,146 @@ const EmployeesList = () => {
     filters,
     setFilters,
     clearFilters,
-    isLoading
-  } = useEmployeesStore()
+    isLoading,
+  } = useEmployeesStore();
 
-  const [showFilters, setShowFilters] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
-  const [selectedEmployees, setSelectedEmployees] = useState([])
-  const [showInactiveEmployees, setShowInactiveEmployees] = useState(false)
-  const [dataLoaded, setDataLoaded] = useState(false)
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [showInactiveEmployees, setShowInactiveEmployees] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        await fetchEmployees()
-        setDataLoaded(true)
+        await fetchEmployees();
+        setDataLoaded(true);
       } catch (error) {
-        toast.error('Error al cargar los datos de empleados')
+        toast.error("Error al cargar los datos de empleados");
       }
-    }
+    };
 
-    if (!dataLoaded) {
-      loadData()
-    }
-  }, [fetchEmployees, dataLoaded])
+    loadData();
+  }, [fetchEmployees]);
 
-  const filteredEmployees = useEmployeesStore(state => state.getFilteredEmployees())
-  const stats = useEmployeesStore(state => state.getEmployeesStats())
+  // Añade un efecto para escuchar eventos de actualización
+  useEffect(() => {
+    const handleEmployeeUpdate = () => {
+      fetchEmployees();
+    };
+
+    // Escuchar evento personalizado de actualización
+    window.addEventListener('employeeUpdated', handleEmployeeUpdate);
+    
+    return () => {
+      window.removeEventListener('employeeUpdated', handleEmployeeUpdate);
+    };
+  }, [fetchEmployees]);
+
+  const filteredEmployees = useEmployeesStore((state) =>
+    state.getFilteredEmployees()
+  );
+  const stats = useEmployeesStore((state) => state.getEmployeesStats());
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, filters])
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
 
-  const indexOfLastEmployee = currentPage * itemsPerPage
-  const indexOfFirstEmployee = indexOfLastEmployee - itemsPerPage
-  const currentEmployees = filteredEmployees.slice(indexOfFirstEmployee, indexOfLastEmployee)
-  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage)
+  const indexOfLastEmployee = currentPage * itemsPerPage;
+  const indexOfFirstEmployee = indexOfLastEmployee - itemsPerPage;
+  const currentEmployees = filteredEmployees.slice(
+    indexOfFirstEmployee,
+    indexOfLastEmployee
+  );
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'No especificada'
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
+    if (!dateString) return "No especificada";
+    return new Date(dateString).toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   const calculateYearsOfService = (hireDate) => {
-    if (!hireDate) return 0
-    const years = (new Date() - new Date(hireDate)) / (365.25 * 24 * 60 * 60 * 1000)
-    return Math.floor(years)
-  }
+    if (!hireDate) return 0;
+    const years =
+      (new Date() - new Date(hireDate)) / (365.25 * 24 * 60 * 60 * 1000);
+    return Math.floor(years);
+  };
 
   const handleSelectEmployee = (employeeId) => {
     if (selectedEmployees.includes(employeeId)) {
-      setSelectedEmployees(selectedEmployees.filter(id => id !== employeeId))
+      setSelectedEmployees(selectedEmployees.filter((id) => id !== employeeId));
     } else {
-      setSelectedEmployees([...selectedEmployees, employeeId])
+      setSelectedEmployees([...selectedEmployees, employeeId]);
     }
-  }
+  };
 
   const handleSelectAll = () => {
     if (selectedEmployees.length === currentEmployees.length) {
-      setSelectedEmployees([])
+      setSelectedEmployees([]);
     } else {
-      setSelectedEmployees(currentEmployees.map(employee => employee.id))
+      setSelectedEmployees(currentEmployees.map((employee) => employee.id));
     }
-  }
+  };
 
   const handleDeleteEmployee = async (employeeId) => {
-    if (window.confirm('¿Estás seguro de eliminar este empleado? Esta acción no se puede deshacer.')) {
-      const result = await deleteEmployee(employeeId)
+    if (
+      window.confirm(
+        "¿Estás seguro de eliminar este empleado? Esta acción no se puede deshacer."
+      )
+    ) {
+      const result = await deleteEmployee(employeeId);
       if (result.success) {
-        toast.success('Empleado eliminado exitosamente')
+        toast.success("Empleado eliminado exitosamente");
+        // Notificar que se ha eliminado un empleado
+        window.dispatchEvent(new CustomEvent('employeeUpdated', { detail: { id: employeeId, action: 'deleted' } }));
       } else {
-        toast.error(result.error || 'Error al eliminar el empleado')
+        toast.error(result.error || "Error al eliminar el empleado");
       }
     }
-  }
+  };
 
   const handleToggleStatus = async (employeeId, currentStatus) => {
-    const action = currentStatus === 'ACTIVE' ? 'desactivar' : 'activar'
+    const action = currentStatus === "ACTIVE" ? "desactivar" : "activar";
     if (window.confirm(`¿Estás seguro de ${action} este empleado?`)) {
-      const result = await toggleEmployeeStatus(employeeId)
+      const result = await toggleEmployeeStatus(employeeId);
       if (result.success) {
-        toast.success(`Empleado ${action === 'desactivar' ? 'desactivado' : 'activado'} exitosamente`)
+        toast.success(
+          `Empleado ${
+            action === "desactivar" ? "desactivado" : "activado"
+          } exitosamente`
+        );
+        // Notificar que se ha actualizado un empleado
+        window.dispatchEvent(new CustomEvent('employeeUpdated', { detail: { id: employeeId, action: 'statusChanged' } }));
       } else {
-        toast.error(result.error || `Error al ${action} el empleado`)
+        toast.error(result.error || `Error al ${action} el empleado`);
       }
     }
-  }
+  };
 
   const handleFilterChange = (key, value) => {
-    setFilters({ [key]: value })
-  }
+    setFilters({ [key]: value });
+  };
 
   const clearAllFilters = () => {
-    clearFilters()
-  }
+    clearFilters();
+  };
 
-  const uniqueDepartments = [...new Set(employees.map(e => e.department).filter(Boolean))].sort()
-  const uniquePositions = [...new Set(employees.map(e => e.position).filter(Boolean))].sort()
+  const uniqueCities = [
+    ...new Set(employees.map((e) => e.city).filter(Boolean)),
+  ].sort();
+  const uniqueStatuses = ["ACTIVE", "INACTIVE", "VACATION", "SUSPENDED"];
 
   if (!dataLoaded) {
     return (
       <div className="flex justify-center items-center min-h-96">
         <div className="spinner h-8 w-8"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -166,22 +200,35 @@ const EmployeesList = () => {
             <div className="flex items-center">
               <Users className="h-8 w-8 text-blue-500" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Empleados</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalEmployees}</p>
-                <p className="text-xs text-green-600">{stats.activeEmployees} activos</p>
+                <p className="text-sm font-medium text-gray-500">
+                  Total Empleados
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.totalEmployees}
+                </p>
+                <p className="text-xs text-green-600">
+                  {stats.activeEmployees} activos
+                </p>
               </div>
             </div>
           </div>
         </div>
-        
+
         <div className="card">
           <div className="card-body">
             <div className="flex items-center">
               <Shield className="h-8 w-8 text-orange-500" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Administradores</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.roleCount.ADMIN || 0}</p>
-                <p className="text-xs text-gray-500">{stats.roleCount.EMPLOYEE || 0} empleados</p>
+                <p className="text-sm font-medium text-gray-500">Roles</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {employees.filter((e) => e.userId).length}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {employees.filter((e) => e.role === "ADMIN").length}{" "}
+                  admin /{" "}
+                  {employees.filter((e) => e.role === "EMPLOYEE").length}{" "}
+                  empleados
+                </p>
               </div>
             </div>
           </div>
@@ -193,7 +240,9 @@ const EmployeesList = () => {
               <XCircle className="h-8 w-8 text-red-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Inactivos</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.inactiveEmployees || 0}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.inactiveEmployees || 0}
+                </p>
                 <p className="text-xs text-gray-500">empleados desactivados</p>
               </div>
             </div>
@@ -223,9 +272,13 @@ const EmployeesList = () => {
             </span>
             <button
               onClick={() => {
-                if (window.confirm('¿Estás seguro de eliminar los empleados seleccionados?')) {
-                  selectedEmployees.forEach(id => handleDeleteEmployee(id))
-                  setSelectedEmployees([])
+                if (
+                  window.confirm(
+                    "¿Estás seguro de eliminar los empleados seleccionados?"
+                  )
+                ) {
+                  selectedEmployees.forEach((id) => handleDeleteEmployee(id));
+                  setSelectedEmployees([]);
                 }
               }}
               className="btn btn-sm btn-danger"
@@ -255,7 +308,7 @@ const EmployeesList = () => {
 
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'}`}
+              className={`btn ${showFilters ? "btn-primary" : "btn-secondary"}`}
             >
               <Filter className="h-4 w-4 mr-2" />
               Filtros
@@ -264,35 +317,21 @@ const EmployeesList = () => {
 
           {showFilters && (
             <div className="border-t pt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Departamento
+                    Ciudad
                   </label>
                   <select
-                    value={filters.department || ''}
-                    onChange={(e) => handleFilterChange('department', e.target.value)}
+                    value={filters.city || ""}
+                    onChange={(e) => handleFilterChange("city", e.target.value)}
                     className="select w-full"
                   >
-                    <option value="">Todos los departamentos</option>
-                    {uniqueDepartments.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cargo
-                  </label>
-                  <select
-                    value={filters.position || ''}
-                    onChange={(e) => handleFilterChange('position', e.target.value)}
-                    className="select w-full"
-                  >
-                    <option value="">Todos los cargos</option>
-                    {uniquePositions.map(pos => (
-                      <option key={pos} value={pos}>{pos}</option>
+                    <option value="">Todas las ciudades</option>
+                    {uniqueCities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -302,15 +341,24 @@ const EmployeesList = () => {
                     Estado
                   </label>
                   <select
-                    value={filters.status || ''}
-                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    value={filters.status || ""}
+                    onChange={(e) =>
+                      handleFilterChange("status", e.target.value)
+                    }
                     className="select w-full"
                   >
                     <option value="">Todos los estados</option>
-                    <option value="ACTIVE">Activo</option>
-                    <option value="INACTIVE">Inactivo</option>
-                    <option value="VACATION">Vacaciones</option>
-                    <option value="SUSPENDED">Suspendido</option>
+                    {uniqueStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status === "ACTIVE"
+                          ? "Activo"
+                          : status === "INACTIVE"
+                          ? "Inactivo"
+                          : status === "VACATION"
+                          ? "Vacaciones"
+                          : "Suspendido"}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -343,13 +391,18 @@ const EmployeesList = () => {
                     <th>
                       <input
                         type="checkbox"
-                        checked={selectedEmployees.length === currentEmployees.length && currentEmployees.length > 0}
+                        checked={
+                          selectedEmployees.length ===
+                            currentEmployees.length &&
+                          currentEmployees.length > 0
+                        }
                         onChange={handleSelectAll}
                         className="rounded border-gray-300"
                       />
                     </th>
                     <th>Empleado</th>
                     <th>Contacto</th>
+                    <th>Comisión</th>
                     <th>Fecha de Ingreso</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -357,12 +410,25 @@ const EmployeesList = () => {
                 </thead>
                 <tbody>
                   {currentEmployees
-                    .filter(employee => showInactiveEmployees || employee.status === 'ACTIVE' || employee.status === 'VACATION' || employee.status === 'SUSPENDED')
+                    .filter(
+                      (employee) =>
+                        showInactiveEmployees ||
+                        employee.status === "ACTIVE" ||
+                        employee.status === "VACATION" ||
+                        employee.status === "SUSPENDED"
+                    )
                     .map((employee) => {
-                      const yearsOfService = calculateYearsOfService(employee.hireDate)
-                      
+                      const yearsOfService = calculateYearsOfService(
+                        employee.hireDate
+                      );
+
                       return (
-                        <tr key={employee.id} className={employee.status === 'INACTIVE' ? 'bg-red-50' : ''}>
+                        <tr
+                          key={employee.id}
+                          className={
+                            employee.status === "INACTIVE" ? "bg-red-50" : ""
+                          }
+                        >
                           <td>
                             <input
                               type="checkbox"
@@ -386,12 +452,26 @@ const EmployeesList = () => {
                                   ID: {employee.id} - Doc: {employee.document}
                                 </div>
                                 <div className="text-xs text-gray-400 flex items-center mt-1">
-                                  {employee.username ? (
-                                    <Shield className="h-3 w-3 mr-1 text-orange-500" />
+                                  {employee.role === "ADMIN" ? (
+                                    <>
+                                      <Shield className="h-3 w-3 mr-1 text-orange-500" />
+                                      <span className="text-orange-600">
+                                        Administrador
+                                      </span>
+                                    </>
+                                  ) : employee.role === "EMPLOYEE" ? (
+                                    <>
+                                      <UserCheck className="h-3 w-3 mr-1 text-blue-500" />
+                                      <span className="text-blue-600">
+                                        Empleado
+                                      </span>
+                                    </>
                                   ) : (
-                                    <User className="h-3 w-3 mr-1 text-gray-400" />
+                                    <>
+                                      <User className="h-3 w-3 mr-1 text-gray-400" />
+                                      <span>Sin usuario</span>
+                                    </>
                                   )}
-                                  {employee.username ? 'Administrador' : 'Empleado'}
                                 </div>
                               </div>
                             </div>
@@ -399,15 +479,26 @@ const EmployeesList = () => {
                           <td>
                             <div className="text-sm text-gray-900 flex items-center mb-1">
                               <Mail className="h-3 w-3 mr-1" />
-                              {employee.email || 'No especificado'}
+                              {employee.email || "No especificado"}
                             </div>
                             <div className="text-sm text-gray-500 flex items-center mb-1">
                               <Phone className="h-3 w-3 mr-1" />
-                              {employee.phone || 'No especificado'}
+                              {employee.phone || "No especificado"}
                             </div>
                             <div className="text-sm text-gray-500 flex items-center">
                               <MapPin className="h-3 w-3 mr-1" />
-                              {employee.city || 'No especificada'}
+                              {employee.city || "No especificada"}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center">
+                              <Percent className="h-3 w-3 mr-1 text-gray-400" />
+                              <div className="text-sm font-semibold text-gray-900">
+                                {employee.commissionRate || 5.0}%
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Por venta
                             </div>
                           </td>
                           <td>
@@ -416,30 +507,40 @@ const EmployeesList = () => {
                             </div>
                             <div className="text-xs text-gray-400 flex items-center mt-1">
                               <Calendar className="h-3 w-3 mr-1" />
-                              {yearsOfService} {yearsOfService === 1 ? 'año' : 'años'} de servicio
+                              {yearsOfService}{" "}
+                              {yearsOfService === 1 ? "año" : "años"} de
+                              servicio
                             </div>
                           </td>
                           <td>
                             <div className="flex items-center">
-                              {employee.status === 'ACTIVE' ? (
+                              {employee.status === "ACTIVE" ? (
                                 <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                              ) : employee.status === 'INACTIVE' ? (
+                              ) : employee.status === "INACTIVE" ? (
                                 <XCircle className="h-4 w-4 text-red-500 mr-1" />
-                              ) : employee.status === 'VACATION' ? (
+                              ) : employee.status === "VACATION" ? (
                                 <Calendar className="h-4 w-4 text-blue-500 mr-1" />
                               ) : (
                                 <XCircle className="h-4 w-4 text-orange-500 mr-1" />
                               )}
-                              <span className={`badge ${
-                                employee.status === 'ACTIVE' ? 'badge-success' : 
-                                employee.status === 'INACTIVE' ? 'badge-danger' :
-                                employee.status === 'VACATION' ? 'badge-info' :
-                                'badge-warning'
-                              }`}>
-                                {employee.status === 'ACTIVE' ? 'Activo' : 
-                                 employee.status === 'INACTIVE' ? 'Inactivo' :
-                                 employee.status === 'VACATION' ? 'Vacaciones' :
-                                 'Suspendido'}
+                              <span
+                                className={`badge ${
+                                  employee.status === "ACTIVE"
+                                    ? "badge-success"
+                                    : employee.status === "INACTIVE"
+                                    ? "badge-danger"
+                                    : employee.status === "VACATION"
+                                    ? "badge-info"
+                                    : "badge-warning"
+                                }`}
+                              >
+                                {employee.status === "ACTIVE"
+                                  ? "Activo"
+                                  : employee.status === "INACTIVE"
+                                  ? "Inactivo"
+                                  : employee.status === "VACATION"
+                                  ? "Vacaciones"
+                                  : "Suspendido"}
                               </span>
                             </div>
                           </td>
@@ -460,23 +561,33 @@ const EmployeesList = () => {
                                 <Edit className="h-4 w-4" />
                               </Link>
                               <button
-                                onClick={() => handleToggleStatus(employee.id, employee.status)}
-                                className={`btn btn-sm ${
-                                  employee.status === 'ACTIVE' 
-                                    ? 'btn-warning' 
-                                    : 'btn-success'
-                                }`}
-                                title={employee.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
-                              >
-                                {employee.status === 'ACTIVE' ? 
-                                  <UserX className="h-4 w-4" /> : 
-                                  <UserCheck className="h-4 w-4" />
+                                onClick={() =>
+                                  handleToggleStatus(
+                                    employee.id,
+                                    employee.status
+                                  )
                                 }
+                                className={`btn btn-sm ${
+                                  employee.status === "ACTIVE"
+                                    ? "btn-warning"
+                                    : "btn-success"
+                                }`}
+                                title={
+                                  employee.status === "ACTIVE"
+                                    ? "Desactivar"
+                                    : "Activar"
+                                }
+                              >
+                                {employee.status === "ACTIVE" ? (
+                                  <UserX className="h-4 w-4" />
+                                ) : (
+                                  <UserCheck className="h-4 w-4" />
+                                )}
                               </button>
                             </div>
                           </td>
                         </tr>
-                      )
+                      );
                     })}
                 </tbody>
               </table>
@@ -489,18 +600,16 @@ const EmployeesList = () => {
         <div className="text-center py-12">
           <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {searchTerm || Object.values(filters).some(f => f) 
-              ? 'No se encontraron empleados' 
-              : 'No hay empleados registrados'
-            }
+            {searchTerm || Object.values(filters).some((f) => f)
+              ? "No se encontraron empleados"
+              : "No hay empleados registrados"}
           </h3>
           <p className="text-gray-500 mb-4">
-            {searchTerm || Object.values(filters).some(f => f)
-              ? 'Intenta ajustar los filtros de búsqueda'
-              : 'Comienza registrando tu primer empleado'
-            }
+            {searchTerm || Object.values(filters).some((f) => f)
+              ? "Intenta ajustar los filtros de búsqueda"
+              : "Comienza registrando tu primer empleado"}
           </p>
-          {!searchTerm && !Object.values(filters).some(f => f) && (
+          {!searchTerm && !Object.values(filters).some((f) => f) && (
             <Link to="/employees/add" className="btn btn-primary">
               <Plus className="h-4 w-4 mr-2" />
               Agregar Empleado
@@ -512,7 +621,9 @@ const EmployeesList = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-700">
-            Mostrando {indexOfFirstEmployee + 1} a {Math.min(indexOfLastEmployee, filteredEmployees.length)} de {filteredEmployees.length} empleados
+            Mostrando {indexOfFirstEmployee + 1} a{" "}
+            {Math.min(indexOfLastEmployee, filteredEmployees.length)} de{" "}
+            {filteredEmployees.length} empleados
           </div>
           <div className="flex space-x-2">
             <button
@@ -528,7 +639,7 @@ const EmployeesList = () => {
                 key={i + 1}
                 onClick={() => setCurrentPage(i + 1)}
                 className={`btn btn-sm ${
-                  currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'
+                  currentPage === i + 1 ? "btn-primary" : "btn-secondary"
                 }`}
               >
                 {i + 1}
@@ -546,7 +657,7 @@ const EmployeesList = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default EmployeesList
+export default EmployeesList;

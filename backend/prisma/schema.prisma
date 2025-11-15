@@ -17,6 +17,7 @@ model User {
   fullName  String   @map("full_name")
   role      String   @default("EMPLOYEE")
   warehouse String   @default("San Francisco") // NUEVO: Campo bodega
+  commissionRate Float     @default(5.0) @map("commission_rate")
   isActive  Boolean  @default(true) @map("is_active")
   lastLogin DateTime? @map("last_login")
   createdAt DateTime @default(now()) @map("created_at")

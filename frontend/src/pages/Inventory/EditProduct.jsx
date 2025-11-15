@@ -95,7 +95,7 @@ const EditProduct = () => {
           costPrice: foundProduct.purchasePrice,
           salePrice: foundProduct.salePrice,
           minStock: foundProduct.minStock,
-          imageUrl: foundProduct.imageUrl || null,
+          imageUrl: foundProduct.imageUrl,
           sizes: foundProduct.stocks.map((stock) => ({
             size: stock.size,
             stock: stock.quantity,

@@ -186,9 +186,6 @@ const EmployeeDetails = () => {
               <h3 className="text-xl font-semibold text-gray-900">
                 {employee.firstName} {employee.lastName}
               </h3>
-              <p className="text-gray-600">
-                {employee.position || 'Cargo no especificado'} - {employee.department || 'Departamento no especificado'}
-              </p>
               <div className="flex items-center mt-1">
                 {employee.status === 'ACTIVE' ? (
                   <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
@@ -245,10 +242,6 @@ const EmployeeDetails = () => {
                   <p className="text-sm text-gray-900">{employee.city || 'No especificada'}</p>
                 </div>
 
-                <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-500">Dirección</p>
-                  <p className="text-sm text-gray-900">{employee.address || 'No especificada'}</p>
-                </div>
 
                 <div>
                   <p className="text-sm font-medium text-gray-500">Fecha de ingreso</p>
@@ -261,6 +254,14 @@ const EmployeeDetails = () => {
                     {calculateYearsOfService(employee.hireDate)} {calculateYearsOfService(employee.hireDate) === 1 ? 'año' : 'años'}
                   </p>
                 </div>
+
+                <div>
+  <p className="text-sm font-medium text-gray-500">Porcentaje de Comisión</p>
+  <p className="text-sm text-gray-900 font-semibold">
+    {employee.user?.commissionRate || employee.commissionRate || 0}%
+  </p>
+  <p className="text-xs text-gray-400 mt-1">Por cada venta realizada</p>
+</div>
               </div>
             </div>
           </div>

@@ -22,8 +22,8 @@ import EmployeeDetails from "./pages/Employees/EmployeeDetails";
 import Invoices from "./pages/Accounting/Invoices";
 import AddInvoice from "./pages/Accounting/AddInvoice";
 import InvoiceDetails from "./pages/Accounting/InvoiceDetails";
+import ReportsPage from "./pages/Reports/ReportsPage";
 import Profile from "./pages/Profile/Profile";
-// Importar el componente de notificación de actualización
 import UpdateNotification from "./components/UpdateNotification";
 
 console.log('✅ App.jsx loaded')
@@ -32,7 +32,6 @@ function App() {
   const { isAuthenticated, user, initialize } = useAuthStore();
   const [isInitialized, setIsInitialized] = React.useState(false);
 
-  // Inicializar el estado de autenticación al cargar la app
   useEffect(() => {
     console.log('🔄 Initializing auth store...')
     initialize();
@@ -40,7 +39,6 @@ function App() {
     console.log('✅ Auth store initialized')
   }, [initialize]);
 
-  // Mostrar pantalla de carga mientras se inicializa
   if (!isInitialized) {
     console.log('⏳ App initializing...')
     return (
@@ -55,12 +53,10 @@ function App() {
 
   console.log('✅ App rendering. isAuthenticated:', isAuthenticated)
 
-  // Componente para proteger rutas
   const ProtectedRoute = ({ children }) => {
     return isAuthenticated ? children : <Navigate to="/login" replace />;
   };
 
-  // Componente para rutas públicas (redirige si ya está autenticado)
   const PublicRoute = ({ children }) => {
     return !isAuthenticated ? children : <Navigate to="/" replace />;
   };
@@ -87,16 +83,15 @@ function App() {
                 <Routes>
                   {/* Dashboard */}
                   <Route index element={<Dashboard />} />
+                  
+                  {/* Perfil */}
                   <Route path="profile" element={<Profile />} />
 
                   {/* Inventario */}
                   <Route path="inventory" element={<InventoryList />} />
                   <Route path="inventory/add" element={<AddProduct />} />
                   <Route path="inventory/edit/:id" element={<EditProduct />} />
-                  <Route
-                    path="inventory/details/:id"
-                    element={<ProductDetails />}
-                  />
+                  <Route path="inventory/details/:id" element={<ProductDetails />} />
 
                   {/* Ventas */}
                   <Route path="sales" element={<SalesList />} />
@@ -114,40 +109,23 @@ function App() {
                     <>
                       <Route path="employees" element={<EmployeesList />} />
                       <Route path="employees/add" element={<AddEmployee />} />
-                      <Route
-                        path="employees/edit/:id"
-                        element={<EditEmployee />}
-                      />
-                      <Route
-                        path="employees/details/:id"
-                        element={<EmployeeDetails />}
-                      />
+                      <Route path="employees/edit/:id" element={<EditEmployee />} />
+                      <Route path="employees/details/:id" element={<EmployeeDetails />} />
                     </>
                   )}
 
-                  {/* Contabilidad - Solo para administradores */}
+                  {/* CORREGIDO: Facturas directamente - Solo para administradores */}
                   {user?.role === "ADMIN" && (
                     <>
-                      {/* Redirigir /accounting al dashboard principal */}
-                      <Route
-                        path="accounting"
-                        element={<Navigate to="/" replace />}
-                      />
-
-                      {/* Rutas de facturas */}
-                      <Route
-                        path="accounting/invoices"
-                        element={<Invoices />}
-                      />
-                      <Route
-                        path="accounting/invoices/add"
-                        element={<AddInvoice />}
-                      />
-                      <Route
-                        path="accounting/invoices/:id"
-                        element={<InvoiceDetails />}
-                      />
+                      <Route path="invoices" element={<Invoices />} />
+                      <Route path="invoices/add" element={<AddInvoice />} />
+                      <Route path="invoices/:id" element={<InvoiceDetails />} />
                     </>
+                  )}
+
+                  {/* Reportes - Solo para administradores */}
+                  {user?.role === "ADMIN" && (
+                    <Route path="reports" element={<ReportsPage />} />
                   )}
 
                   {/* Ruta catch-all para rutas no encontradas */}
@@ -159,7 +137,6 @@ function App() {
         />
       </Routes>
       
-      {/* Componente de notificación de actualización - fuera de las rutas */}
       <UpdateNotification />
     </div>
   );

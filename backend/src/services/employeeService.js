@@ -44,6 +44,15 @@ class EmployeeService {
       if (userAlreadyAssigned) {
         throw new Error('Este usuario ya está asignado a otro empleado');
       }
+
+      // CORREGIDO: Actualizar rol y comisión en la tabla User
+      await prisma.user.update({
+        where: { id: parseInt(data.userId) },
+        data: {
+          role: data.role || user.role, // Si se proporciona un nuevo rol, lo actualiza
+          commissionRate: parseFloat(data.commissionRate) // CORREGIDO: Actualizar comisión
+        }
+      });
       
       userId = parseInt(data.userId);
     }
@@ -83,7 +92,9 @@ class EmployeeService {
           select: {
             id: true,
             username: true,
-            email: true
+            email: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       }
@@ -100,7 +111,8 @@ class EmployeeService {
     
     // Verificar que existe el empleado
     const existingEmployee = await prisma.employee.findUnique({
-      where: { id: employeeId }
+      where: { id: employeeId },
+      include: { user: true } // CORREGIDO: Incluir usuario para verificar datos existentes
     });
     
     if (!existingEmployee) {
@@ -154,13 +166,13 @@ class EmployeeService {
       notes: data.notes
     };
     
-    // Manejar relación con usuario
+    // CORREGIDO: Manejar relación con usuario y sus datos
     if (data.userId !== undefined) {
       if (data.userId === null) {
         // Desvincular usuario
         updateData.user = { disconnect: true };
       } else {
-        // Vincular nuevo usuario
+        // Vincular nuevo usuario o actualizar el existente
         const user = await prisma.user.findUnique({
           where: { id: parseInt(data.userId) }
         });
@@ -169,7 +181,28 @@ class EmployeeService {
           throw new Error('Usuario no encontrado');
         }
         
+        // CORREGIDO: Actualizar rol y comisión en la tabla User
+        await prisma.user.update({
+          where: { id: parseInt(data.userId) },
+          data: {
+            role: data.role || user.role, // Si se proporciona un nuevo rol, lo actualiza
+            commissionRate: parseFloat(data.commissionRate) // CORREGIDO: Actualizar comisión
+          }
+        });
+
         updateData.user = { connect: { id: parseInt(data.userId) } };
+      }
+    } else if (existingEmployee.user) {
+      // Si no se cambia el userId pero el empleado tiene un usuario, actualizamos sus datos
+      // CORREGIDO: Actualizar rol y comisión si se proporcionan en los datos
+      if (data.role !== undefined || data.commissionRate !== undefined) {
+        await prisma.user.update({
+          where: { id: existingEmployee.user.id },
+          data: {
+            ...(data.role && { role: data.role }),
+            ...(data.commissionRate !== undefined && { commissionRate: parseFloat(data.commissionRate) })
+          }
+        });
       }
     }
     
@@ -182,7 +215,9 @@ class EmployeeService {
           select: {
             id: true,
             username: true,
-            email: true
+            email: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       }
@@ -203,7 +238,8 @@ class EmployeeService {
             id: true,
             username: true,
             email: true,
-            role: true
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       }
@@ -227,7 +263,9 @@ class EmployeeService {
           select: {
             id: true,
             username: true,
-            email: true
+            email: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       }
@@ -249,7 +287,9 @@ class EmployeeService {
         user: {
           select: {
             id: true,
-            username: true
+            username: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       },
@@ -275,7 +315,9 @@ class EmployeeService {
           user: {
             select: {
               id: true,
-              username: true
+              username: true,
+              role: true, // CORREGIDO: Incluir rol en la respuesta
+              commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
             }
           }
         },
@@ -307,7 +349,9 @@ class EmployeeService {
         user: {
           select: {
             id: true,
-            username: true
+            username: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       },
@@ -336,7 +380,9 @@ class EmployeeService {
         user: {
           select: {
             id: true,
-            username: true
+            username: true,
+            role: true, // CORREGIDO: Incluir rol en la respuesta
+            commissionRate: true // CORREGIDO: Incluir comisión en la respuesta
           }
         }
       },
@@ -487,6 +533,8 @@ class EmployeeService {
       notes: employee.notes,
       userId: employee.user?.id || null,
       username: employee.user?.username || null,
+      role: employee.user?.role || null, // CORREGIDO: Incluir rol en la respuesta
+      commissionRate: employee.user?.commissionRate || 5.0, // CORREGIDO: Incluir comisión en la respuesta
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt
     };

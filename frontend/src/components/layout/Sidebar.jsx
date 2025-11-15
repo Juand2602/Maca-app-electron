@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.jsx
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -6,21 +7,15 @@ import {
   ShoppingCart,
   Truck,
   Users,
-  Calculator,
-  X,
-  BarChart3,
   FileText,
-  CreditCard,
-  PieChart,
-  ChevronDown,
-  ChevronRight,
+  X,
+  TrendingUp,
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { isAdmin } = useAuthStore();
-  const [expandedMenus, setExpandedMenus] = useState({ accounting: false });
 
   // Elementos de navegación
   const navigationItems = [
@@ -55,18 +50,16 @@ const Sidebar = ({ isOpen, onClose }) => {
       adminOnly: true,
     },
     {
-      name: "Contabilidad",
-      key: "accounting",
-      icon: Calculator,
+      name: "Facturas",
+      href: "/invoices",
+      icon: FileText,
       adminOnly: true,
-      expandable: true,
-      subItems: [
-        {
-          name: "Facturas",
-          href: "/accounting/invoices",
-          icon: FileText,
-        },
-      ],
+    },
+    {
+      name: "Reportes",
+      href: "/reports",
+      icon: TrendingUp,
+      adminOnly: true,
     },
   ];
 
@@ -82,52 +75,34 @@ const Sidebar = ({ isOpen, onClose }) => {
     return location.pathname.startsWith(href);
   };
 
-  const isParentActive = (item) => {
-    if (item.subItems) {
-      return item.subItems.some((subItem) => isActive(subItem.href));
-    }
-    return false;
-  };
-
-  const toggleMenu = (key) => {
-    setExpandedMenus((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  // Auto-expand accounting menu if we're on an accounting page
-  const isAccountingActive = location.pathname.startsWith("/accounting");
-  if (isAccountingActive && !expandedMenus.accounting) {
-    setExpandedMenus((prev) => ({ ...prev, accounting: true }));
-  }
-
   return (
     <>
       {/* Sidebar */}
       <div
         className={`
-fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
-${isOpen ? "translate-x-0" : "-translate-x-full"}
-`}
+          fixed inset-y-0 left-0 z-50 w-64 bg-black shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="h-8 w-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-white" />
-              </div>
+              <img 
+                src="/logo-maca.png" 
+                alt="MACA Logo" 
+                className="h-10 w-auto filter brightness-0 invert"
+              />
             </div>
             <div className="ml-3">
-              <h2 className="text-lg font-semibold text-gray-900">Sistema</h2>
-              <p className="text-xs text-gray-500">Administrativo</p>
+              <h2 className="text-lg font-bold text-white">MACA</h2>
+              <p className="text-xs text-gray-400">Sistema Administrativo</p>
             </div>
           </div>
           {/* Close button - mobile only */}
           <button
             type="button"
-            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800"
             onClick={onClose}
           >
             <X className="h-5 w-5" />
@@ -135,104 +110,36 @@ ${isOpen ? "translate-x-0" : "-translate-x-full"}
         </div>
 
         {/* Navigation */}
-        <nav className="mt-8 px-4 flex-1 overflow-y-auto">
+        <nav className="mt-8 px-4 flex-1 overflow-y-auto pb-20">
           <ul className="space-y-2">
             {filteredItems.map((item) => {
               const Icon = item.icon;
-              const hasSubItems =
-                item.expandable && item.subItems && item.subItems.length > 0;
-              const isItemActive = hasSubItems
-                ? isParentActive(item)
-                : isActive(item.href);
-              const isExpanded = hasSubItems && expandedMenus[item.key];
+              const itemActive = isActive(item.href);
 
               return (
                 <li key={item.name}>
-                  {hasSubItems ? (
-                    // Expandable parent item
-                    <div>
-                      <button
-                        onClick={() => toggleMenu(item.key)}
-                        className={`
-w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
-${
-  isItemActive
-    ? "bg-primary-100 text-primary-900"
-    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-}
-`}
-                      >
-                        <div className="flex items-center">
-                          <Icon
-                            className={`h-5 w-5 mr-3 ${
-                              isItemActive
-                                ? "text-primary-600"
-                                : "text-gray-400"
-                            }`}
-                          />
-                          {item.name}
-                        </div>
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </button>
-
-                      {/* Sub-navigation */}
-                      {isExpanded && (
-                        <ul className="mt-2 ml-4 space-y-1">
-                          {item.subItems.map((subItem) => {
-                            const SubIcon = subItem.icon;
-                            return (
-                              <li key={subItem.name}>
-                                <Link
-                                  to={subItem.href}
-                                  className={`
-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200
-${
-  isActive(subItem.href)
-    ? "bg-primary-100 text-primary-900"
-    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-}
-`}
-                                  onClick={() => {
-                                    // Cerrar sidebar en mobile al navegar
-                                    onClose();
-                                  }}
-                                >
-                                  <SubIcon
-                                    className={`h-4 w-4 mr-3 ${
-                                      isActive(subItem.href)
-                                        ? "text-primary-600"
-                                        : "text-gray-400"
-                                    }`}
-                                  />
-                                  {subItem.name}
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    // Regular navigation item
-                    <Link
-                      to={item.href}
-                      className={`
-sidebar-item
-${isActive(item.href) ? "active" : ""}
-`}
-                      onClick={() => {
-                        // Cerrar sidebar en mobile al navegar
-                        onClose();
-                      }}
-                    >
-                      <Icon className="h-5 w-5" />
-                      {item.name}
-                    </Link>
-                  )}
+                  <Link
+                    to={item.href}
+                    className={`
+                      flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
+                      ${
+                        itemActive
+                          ? "bg-white text-black"
+                          : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      }
+                    `}
+                    onClick={() => {
+                      // Cerrar sidebar en mobile al navegar
+                      onClose();
+                    }}
+                  >
+                    <Icon
+                      className={`h-5 w-5 mr-3 ${
+                        itemActive ? "text-black" : "text-gray-400"
+                      }`}
+                    />
+                    {item.name}
+                  </Link>
                 </li>
               );
             })}
@@ -240,14 +147,21 @@ ${isActive(item.href) ? "active" : ""}
         </nav>
 
         {/* Footer info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-          <div className="text-xs text-gray-500 text-center">
-            <p>Sistema de Gestión</p>
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800 bg-black">
+          <div className="text-xs text-gray-400 text-center">
+            <p className="font-semibold text-white">MACA</p>
             <p>Empresa de Calzado</p>
-            <p className="mt-1 text-primary-600 font-medium">v1.0.0</p>
           </div>
         </div>
       </div>
+
+      {/* Overlay - solo en mobile */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
     </>
   );
 };

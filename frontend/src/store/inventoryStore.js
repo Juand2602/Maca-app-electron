@@ -10,11 +10,16 @@ const useInventoryStore = create((set, get) => ({
   filters: {
     category: '',
     color: '',
+    material: '',
     size: '',
     priceRange: '',
     stockStatus: '',
     productStatus: ''
   },
+  categories: [],
+  materials: [],
+  colors: [],
+  isLoadingOptions: false,
 
   // Acciones CRUD
   
@@ -221,6 +226,7 @@ const useInventoryStore = create((set, get) => ({
       filters: {
         category: '',
         color: '',
+        material: '',
         size: '',
         priceRange: '',
         stockStatus: '',
@@ -250,6 +256,10 @@ const useInventoryStore = create((set, get) => ({
 
     if (filters.color) {
       filtered = filtered.filter(product => product.color === filters.color)
+    }
+
+    if (filters.material) {
+      filtered = filtered.filter(product => product.material === filters.material)
     }
 
     if (filters.stockStatus) {
@@ -310,72 +320,62 @@ const useInventoryStore = create((set, get) => ({
   clearError: () => {
     set({ error: null })
   },
-// Agregar estos métodos al inventoryStore.js
 
-// Estado
-categories: [],
-materials: [],
-colors: [],
-isLoadingOptions: false,
+  // Métodos para obtener opciones dinámicas de filtros
+  fetchCategories: async () => {
+    try {
+      const { inventoryService } = await import('../services/inventoryService')
+      const categories = await inventoryService.getCategories()
+      set({ categories })
+      return categories
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      // En caso de error, usar valores por defecto
+      set({ categories: ['Formal', 'Casual', 'Deportivo', 'Botas', 'Sandalias'] })
+      return ['Formal', 'Casual', 'Deportivo', 'Botas', 'Sandalias']
+    }
+  },
 
-// Acciones
-fetchCategories: async () => {
-  try {
-    const { inventoryService } = await import('../services/inventoryService')
-    const categories = await inventoryService.getCategories()
-    set({ categories })
-    return categories
-  } catch (error) {
-    console.error('Error fetching categories:', error)
-    // En caso de error, usar valores por defecto
-    set({ categories: ['Formal', 'Casual', 'Deportivo', 'Botas', 'Sandalias'] })
-    return ['Formal', 'Casual', 'Deportivo', 'Botas', 'Sandalias']
+  fetchMaterials: async () => {
+    try {
+      const { inventoryService } = await import('../services/inventoryService')
+      const materials = await inventoryService.getMaterials()
+      set({ materials })
+      return materials
+    } catch (error) {
+      console.error('Error fetching materials:', error)
+      // En caso de error, usar valores por defecto
+      set({ materials: ['Cuero Genuino', 'Cuero Sintético', 'Lona', 'Sintético', 'Gamuza'] })
+      return ['Cuero Genuino', 'Cuero Sintético', 'Lona', 'Sintético', 'Gamuza']
+    }
+  },
+
+  fetchColors: async () => {
+    try {
+      const { inventoryService } = await import('../services/inventoryService')
+      const colors = await inventoryService.getColors()
+      set({ colors })
+      return colors
+    } catch (error) {
+      console.error('Error fetching colors:', error)
+      // En caso de error, usar valores por defecto
+      set({ colors: ['Negro', 'Marrón', 'Blanco', 'Beige', 'Gris', 'Azul', 'Rojo', 'Otro'] })
+      return ['Negro', 'Marrón', 'Blanco', 'Beige', 'Gris', 'Azul', 'Rojo', 'Otro']
+    }
+  },
+
+  fetchProductOptions: async () => {
+    set({ isLoadingOptions: true })
+    try {
+      await Promise.all([
+        get().fetchCategories(),
+        get().fetchMaterials(),
+        get().fetchColors()
+      ])
+    } finally {
+      set({ isLoadingOptions: false })
+    }
   }
-},
-
-fetchMaterials: async () => {
-  try {
-    const { inventoryService } = await import('../services/inventoryService')
-    const materials = await inventoryService.getMaterials()
-    set({ materials })
-    return materials
-  } catch (error) {
-    console.error('Error fetching materials:', error)
-    // En caso de error, usar valores por defecto
-    set({ materials: ['Cuero Genuino', 'Cuero Sintético', 'Lona', 'Sintético', 'Gamuza'] })
-    return ['Cuero Genuino', 'Cuero Sintético', 'Lona', 'Sintético', 'Gamuza']
-  }
-},
-
-fetchColors: async () => {
-  try {
-    const { inventoryService } = await import('../services/inventoryService')
-    const colors = await inventoryService.getColors()
-    set({ colors })
-    return colors
-  } catch (error) {
-    console.error('Error fetching colors:', error)
-    // En caso de error, usar valores por defecto
-    set({ colors: ['Negro', 'Marrón', 'Blanco', 'Beige', 'Gris', 'Azul', 'Rojo', 'Otro'] })
-    return ['Negro', 'Marrón', 'Blanco', 'Beige', 'Gris', 'Azul', 'Rojo', 'Otro']
-  }
-},
-
-fetchProductOptions: async () => {
-  set({ isLoadingOptions: true })
-  try {
-    await Promise.all([
-      get().fetchCategories(),
-      get().fetchMaterials(),
-      get().fetchColors()
-    ])
-  } finally {
-    set({ isLoadingOptions: false })
-  }
-},
-
-
-
 }))
 
 // Exportar el store

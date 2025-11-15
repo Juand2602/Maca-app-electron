@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { Menu, User, LogOut, Settings, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom"; // AGREGADO
+import { Menu, User, LogOut, Bell } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 const Header = ({ onMenuClick }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { user, logout, getWarehouse } = useAuthStore();
+  const navigate = useNavigate(); // AGREGADO
 
   const handleLogout = () => {
     logout();
     setDropdownOpen(false);
+  };
+
+  // AGREGADO: Función para navegar al perfil
+  const handleProfileClick = () => {
+    setDropdownOpen(false);
+    navigate('/profile');
   };
 
   return (
@@ -28,7 +36,7 @@ const Header = ({ onMenuClick }) => {
           {/* Page title and breadcrumb area */}
           <div className="ml-4 lg:ml-0">
             <h1 className="text-lg font-semibold text-gray-900">
-              Sistema Administrativo de Calzado MACA AUTO-UPADTER
+              Sistema Administrativo de Calzado
             </h1>
             <p className="text-sm text-gray-500">Bodega: {getWarehouse()}</p>
           </div>
@@ -74,13 +82,10 @@ const Header = ({ onMenuClick }) => {
                   <p className="text-sm text-gray-500">{user?.email}</p>
                 </div>
 
+                {/* CORREGIDO: Usar navigate en lugar de window.location.href */}
                 <button
                   className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    // Navegar a la ruta de perfil
-                    window.location.href = "/profile";
-                  }}
+                  onClick={handleProfileClick}
                 >
                   <User className="h-4 w-4 mr-3" />
                   Mi Perfil

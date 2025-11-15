@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { 
@@ -14,7 +14,8 @@ import {
   Calculator,
   CreditCard,
   ShoppingCart,
-  DollarSign
+  DollarSign,
+  Package
 } from 'lucide-react'
 import { useSalesStore } from '../../store/salesStore'
 import { useInventoryStore } from '../../store/inventoryStore'
@@ -28,9 +29,20 @@ const NewSale = () => {
   const { fetchProducts, products } = useInventoryStore()
   
   const [availableProducts, setAvailableProducts] = useState([])
-  const [searchProduct, setSearchProduct] = useState('')
-  const [filteredProducts, setFilteredProducts] = useState([])
-  const [showProductSearch, setShowProductSearch] = useState(false)
+  
+  // Estados para la búsqueda principal (arriba)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showMainDropdown, setShowMainDropdown] = useState(false)
+  const [mainDropdownProducts, setMainDropdownProducts] = useState([])
+
+  // Estados para la búsqueda en la tabla
+  const [selectedItemIndex, setSelectedItemIndex] = useState(null)
+  const [tableDropdownProducts, setTableDropdownProducts] = useState([])
+  const [suggestionStyle, setSuggestionStyle] = useState(null)
+  
+  const productSearchRef = useRef(null)
+  const tableWrapperRef = useRef(null)
+  const mainSearchInputRef = useRef(null) // nuevo: ref para el input principal
 
   const {
     register,
@@ -50,7 +62,7 @@ const NewSale = () => {
       paymentType: 'SINGLE',
       payments: [{
         paymentMethod: 'CASH',
-        amount: '', // Cambiado de 0 a string vacío para mostrar placeholder
+        amount: '',
         referenceNumber: '',
         notes: ''
       }],
@@ -91,7 +103,8 @@ const NewSale = () => {
                 price: product.salePrice,
                 availableStock: stock.quantity,
                 category: product.category,
-                color: product.color
+                color: product.color,
+                brand: product.brand || 'Sin marca'
               })
             }
           })
@@ -104,26 +117,15 @@ const NewSale = () => {
     loadProducts()
   }, [fetchProducts, products])
 
-  useEffect(() => {
-    if (searchProduct) {
-      const filtered = availableProducts.filter(product =>
-        product.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
-        product.reference.toLowerCase().includes(searchProduct.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchProduct.toLowerCase())
-      )
-      setFilteredProducts(filtered.slice(0, 10))
-    } else {
-      setFilteredProducts([])
-    }
-  }, [searchProduct, availableProducts])
-
-  // Sincronizar pagos con el total cuando cambia
-  useEffect(() => {
-    const total = calculateTotal()
-    if (watchedPaymentType === 'SINGLE' && watchedPayments.length > 0) {
-      setValue('payments.0.amount', total)
-    }
-  }, [watchedItems, watchedPaymentType])
+  // CORREGIDO: Usamos useMemo para calcular el total de forma eficiente y estable
+  const calculateTotal = useMemo(() => {
+    return watchedItems.reduce((sum, item) => {
+      const quantity = parseInt(item.quantity) || 0
+      const price = parseFloat(item.unitPrice) || 0
+      const discount = parseFloat(item.discount) || 0
+      return sum + (quantity * price) - discount
+    }, 0)
+  }, [watchedItems])
 
   const calculateSubtotal = () => {
     return watchedItems.reduce((sum, item) => {
@@ -139,15 +141,39 @@ const NewSale = () => {
     }, 0)
   }
 
-  const calculateTotal = () => {
-    return calculateSubtotal() - calculateTotalDiscount()
-  }
-
   const calculateTotalPayments = () => {
     return watchedPayments.reduce((sum, payment) => {
       return sum + (parseFloat(payment.amount) || 0)
     }, 0)
   }
+
+  // CORREGIDO: Este useEffect ahora depende de calculateTotal, asegurando que se ejecute
+  // cada vez que el total de la venta cambia.
+  useEffect(() => {
+    if (watchedPaymentType === 'SINGLE' && watchedPayments.length > 0) {
+      setValue('payments.0.amount', calculateTotal.toString())
+    }
+  }, [calculateTotal, watchedPaymentType, watchedPayments.length, setValue])
+
+  // Cerrar dropdowns si se hace click fuera
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      // Cerrar dropdown principal
+      if (productSearchRef.current && !productSearchRef.current.contains(e.target)) {
+        setShowMainDropdown(false)
+      }
+      
+      // Cerrar dropdown de la tabla
+      if (tableWrapperRef.current && !tableWrapperRef.current.contains(e.target)) {
+        setSelectedItemIndex(null)
+        setTableDropdownProducts([])
+        setSuggestionStyle(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-CO', {
@@ -157,7 +183,33 @@ const NewSale = () => {
     }).format(amount)
   }
 
-  const addProduct = (product) => {
+  // --- LÓGICA PARA BÚSQUEDA PRINCIPAL ---
+
+  const handleMainSearchClick = () => {
+    // Solo abrir si hay productos disponibles
+    setShowMainDropdown(true)
+    setMainDropdownProducts(availableProducts)
+  }
+
+  const handleMainSearchChange = (value) => {
+    setSearchTerm(value)
+    
+    if (value.trim() === '') {
+      setMainDropdownProducts(availableProducts)
+    } else {
+      const filtered = availableProducts.filter(product =>
+        (product.name || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.reference || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.category || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.brand || '').toLowerCase().includes(value.toLowerCase())
+      )
+      setMainDropdownProducts(filtered)
+    }
+    
+    setShowMainDropdown(true)
+  }
+
+  const addProductFromMainSearch = (product) => {
     const existingIndex = watchedItems.findIndex(item => 
       item.productId === product.productId && item.size === product.size
     )
@@ -167,6 +219,7 @@ const NewSale = () => {
       if (currentQuantity < product.availableStock) {
         setValue(`items.${existingIndex}.quantity`, currentQuantity + 1)
         updateItemTotal(existingIndex)
+        toast.success('Cantidad actualizada')
       } else {
         toast.error('No hay suficiente stock disponible')
       }
@@ -182,11 +235,108 @@ const NewSale = () => {
         total: product.price,
         availableStock: product.availableStock
       })
+      toast.success('Producto agregado')
     }
 
-    setSearchProduct('')
-    setShowProductSearch(false)
+    setSearchTerm('')
+    setShowMainDropdown(false)
+
+    // Evita que el input recupere foco y reabra el dropdown
+    try {
+      mainSearchInputRef.current?.blur()
+    } catch (err) {
+      // noop
+    }
   }
+
+  // --- LÓGICA PARA BÚSQUEDA EN TABLA ---
+
+  const handleTableSearchFocus = (index, e) => {
+    setSelectedItemIndex(index)
+    setTableDropdownProducts(availableProducts)
+
+    try {
+      const wrapperRect = tableWrapperRef.current?.getBoundingClientRect()
+      const inputRect = e?.target?.getBoundingClientRect()
+      if (wrapperRect && inputRect) {
+        const top = inputRect.bottom - wrapperRect.top + 6
+        const left = 0
+        const width = wrapperRect.width
+        setSuggestionStyle({ top: `${top}px`, left: `${left}px`, width: `${width}px` })
+      } else {
+        setSuggestionStyle(null)
+      }
+    } catch (err) {
+      setSuggestionStyle(null)
+    }
+  }
+
+  const handleTableSearchChange = (index, value) => {
+    setValue(`items.${index}.name`, value)
+    
+    if (value.trim() === '') {
+      setTableDropdownProducts(availableProducts)
+    } else {
+      const filtered = availableProducts.filter(product =>
+        (product.name || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.reference || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.category || '').toLowerCase().includes(value.toLowerCase()) ||
+        (product.brand || '').toLowerCase().includes(value.toLowerCase())
+      )
+      setTableDropdownProducts(filtered)
+    }
+  }
+
+  const selectProductFromTable = (index, product) => {
+    // Verificar si el producto ya está en la tabla
+    const existingIndex = watchedItems.findIndex(item => 
+      item.productId === product.productId && item.size === product.size
+    )
+
+    if (existingIndex >= 0 && existingIndex !== index) {
+      // Si ya existe en otro ítem, actualizamos la cantidad
+      const currentQuantity = parseInt(watchedItems[existingIndex].quantity) || 0
+      if (currentQuantity < product.availableStock) {
+        setValue(`items.${existingIndex}.quantity`, currentQuantity + 1)
+        updateItemTotal(existingIndex)
+        
+        // Si el ítem actual está vacío, lo eliminamos
+        if (!watchedItems[index].productId) {
+          removeItem(index)
+        }
+        toast.success('Cantidad actualizada')
+      } else {
+        toast.error('No hay suficiente stock disponible')
+      }
+    } else {
+      // Si no existe o es el mismo ítem, lo actualizamos
+      setValue(`items.${index}.productId`, product.productId)
+      setValue(`items.${index}.reference`, product.reference)
+      setValue(`items.${index}.name`, product.name)
+      setValue(`items.${index}.size`, product.size)
+      setValue(`items.${index}.quantity`, 1)
+      setValue(`items.${index}.unitPrice`, product.price)
+      setValue(`items.${index}.discount`, 0)
+      setValue(`items.${index}.total`, product.price)
+      setValue(`items.${index}.availableStock`, product.availableStock)
+      toast.success('Producto seleccionado')
+    }
+    
+    setSelectedItemIndex(null)
+    setTableDropdownProducts([])
+    setSuggestionStyle(null)
+
+    // Evita que el input de la fila recupere foco y reabra el dropdown
+    try {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+    } catch (err) {
+      // noop
+    }
+  }
+
+  // --- LÓGICA GENERAL ---
 
   const updateItemTotal = (index) => {
     const item = watchedItems[index]
@@ -195,6 +345,12 @@ const NewSale = () => {
     const discount = parseFloat(item.discount) || 0
     const total = (quantity * unitPrice) - discount
     setValue(`items.${index}.total`, total)
+    
+    // Forzar actualización inmediata del pago único si aplica
+    if (watchedPaymentType === 'SINGLE') {
+      const newTotal = calculateSubtotal() - calculateTotalDiscount()
+      setValue('payments.0.amount', newTotal.toString())
+    }
   }
 
   const handleQuantityChange = (index, newQuantity) => {
@@ -211,25 +367,23 @@ const NewSale = () => {
     setValue('paymentType', type)
     
     if (type === 'SINGLE') {
-      // Reset a un solo pago
       setValue('payments', [{
         paymentMethod: 'CASH',
-        amount: calculateTotal(),
+        amount: calculateTotal.toString(),
         referenceNumber: '',
         notes: ''
       }])
     } else {
-      // Pago mixto - iniciar con dos métodos vacíos
       setValue('payments', [
         {
           paymentMethod: 'CASH',
-          amount: '', // Cambiado de 0 a string vacío para mostrar placeholder
+          amount: '',
           referenceNumber: '',
           notes: ''
         },
         {
           paymentMethod: 'CARD',
-          amount: '', // Cambiado de 0 a string vacío para mostrar placeholder
+          amount: '',
           referenceNumber: '',
           notes: ''
         }
@@ -248,7 +402,7 @@ const NewSale = () => {
         throw new Error('El nombre del cliente es requerido')
       }
 
-      const total = calculateTotal()
+      const total = calculateTotal
       const totalPayments = calculateTotalPayments()
 
       if (totalPayments < total) {
@@ -270,7 +424,7 @@ const NewSale = () => {
         })),
         payments: data.payments.map(payment => ({
           paymentMethod: payment.paymentMethod,
-          amount: parseFloat(payment.amount) || 0, // Asegurar que sea un número
+          amount: parseFloat(payment.amount) || 0,
           referenceNumber: payment.referenceNumber || null,
           notes: payment.notes || null
         }))
@@ -292,7 +446,7 @@ const NewSale = () => {
     }
   }
 
-  const total = calculateTotal()
+  const total = calculateTotal
   const totalPayments = calculateTotalPayments()
   const difference = totalPayments - total
 
@@ -308,7 +462,7 @@ const NewSale = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Nueva Venta</h1>
             <p className="text-sm text-gray-500">
-              Registro de venta - {user?.firstName} {user?.lastName}
+              Registro de venta - {user?.fullName || user?.username}
             </p>
           </div>
         </div>
@@ -378,41 +532,42 @@ const NewSale = () => {
                   Buscar Productos
                 </h3>
               </div>
-              <div className="card-body">
+              <div className="card-body" ref={productSearchRef}>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    ref={mainSearchInputRef} // agregado
                     type="text"
-                    value={searchProduct}
-                    onChange={(e) => {
-                      setSearchProduct(e.target.value)
-                      setShowProductSearch(!!e.target.value)
-                    }}
+                    value={searchTerm}
+                    onChange={(e) => handleMainSearchChange(e.target.value)}
+                    onClick={handleMainSearchClick}
+                    
                     className="input pl-10"
-                    placeholder="Buscar por nombre, referencia o categoría..."
+                    placeholder="Buscar por nombre, referencia, marca o categoría..."
                   />
                   
-                  {showProductSearch && filteredProducts.length > 0 && (
+                  {showMainDropdown && mainDropdownProducts.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                      {filteredProducts.map((product) => (
+                      {mainDropdownProducts.map((product) => (
                         <button
                           key={product.id}
                           type="button"
-                          onClick={() => addProduct(product)}
+                          onMouseDown={(e) => { e.preventDefault(); addProductFromMainSearch(product); }}
                           className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                         >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <p className="font-medium text-gray-900">{product.name}</p>
-                              <p className="text-sm text-gray-500">
-                                {product.reference} - Talla {product.size} - {product.color}
-                              </p>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1 pr-4">
+                              <div className="font-medium text-gray-900">{product.name}</div>
+                              <div className="text-sm text-gray-500 mt-1">Código: {product.reference}</div>
+                              <div className="text-sm text-gray-500">Marca: {product.brand}</div>
+                              <div className="text-sm text-gray-500">Categoría: {product.category}</div>
+                              <div className="text-sm text-gray-500">Talla: {product.size} - Color: {product.color}</div>
                             </div>
                             <div className="text-right">
-                              <p className="font-medium text-gray-900">{formatCurrency(product.price)}</p>
-                              <p className="text-xs text-gray-500">Stock: {product.availableStock}</p>
+                              <div className="font-medium text-lg text-primary-600">{formatCurrency(product.price)}</div>
+                              <div className="text-sm text-gray-500">Stock: {product.availableStock}</div>
                             </div>
                           </div>
                         </button>
@@ -439,89 +594,163 @@ const NewSale = () => {
                     <p className="text-sm">Busca y agrega productos arriba</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-200">
-                    {itemFields.map((field, index) => {
-                      const item = watchedItems[index] || {}
-                      return (
-                        <div key={field.id} className="p-4">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">{item.name}</h4>
-                              <p className="text-sm text-gray-500">
-                                {item.reference} - Talla {item.size}
-                              </p>
-                            </div>
+                  <div className="relative h-full" ref={tableWrapperRef}>
+                    {/* Tabla con header fijo */}
+                    <div className="overflow-x-auto">
+                      <table className="table w-full">
+                        <thead>
+                          <tr>
+                            <th className="text-left">Producto</th>
+                            <th className="text-left">Cantidad</th>
+                            <th className="text-left">Precio</th>
+                            <th className="text-left">Descuento</th>
+                            <th className="text-left">Total</th>
+                            <th className="text-left">Acciones</th>
+                          </tr>
+                        </thead>
+                      </table>
+                    </div>
 
-                            <div className="flex items-center space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => handleQuantityChange(index, Math.max(1, (parseInt(item.quantity) || 1) - 1))}
-                                className="btn btn-sm btn-secondary"
-                                disabled={parseInt(item.quantity) <= 1}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </button>
-                              <input
-                                {...register(`items.${index}.quantity`, {
-                                  onChange: () => updateItemTotal(index)
-                                })}
-                                type="number"
-                                className="input text-center w-16"
-                                min="1"
-                                max={item.availableStock}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleQuantityChange(index, (parseInt(item.quantity) || 1) + 1)}
-                                className="btn btn-sm btn-secondary"
-                                disabled={parseInt(item.quantity) >= item.availableStock}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            </div>
+                    {/* Filas en contenedor que ocupa el resto de la altura y es scrollable */}
+                    <div className="overflow-auto" style={{ maxHeight: '400px' }}>
+                      <table className="table w-full">
+                        <tbody>
+                          {itemFields.map((field, index) => {
+                            const item = watchedItems[index] || {}
+                            return (
+                              <tr key={field.id} className="align-top">
+                                <td className="relative py-4">
+                                  <div className="relative">
+                                    <input
+                                      {...register(`items.${index}.name`)}
+                                      type="text"
+                                      value={item.name || ''}
+                                      onChange={(e) => handleTableSearchChange(index, e.target.value)}
+                                      onFocus={(e) => handleTableSearchFocus(index, e)}
+                                      className="input w-full pr-8"
+                                      placeholder="Buscar producto o escribir descripción"
+                                    />
+                                    <Package className="absolute right-2 top-2 h-4 w-4 text-gray-400" />
+                                  </div>
+                                </td>
 
-                            <div className="text-right min-w-[120px]">
-                              <p className="font-medium">{formatCurrency(parseFloat(item.unitPrice) || 0)}</p>
-                              <p className="text-sm text-gray-500">c/u</p>
-                            </div>
+                                <td className="py-4">
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuantityChange(index, Math.max(1, (parseInt(item.quantity) || 1) - 1))}
+                                      className="btn btn-sm btn-secondary"
+                                      disabled={parseInt(item.quantity) <= 1}
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </button>
+                                    <input
+                                      {...register(`items.${index}.quantity`, {
+                                        onChange: () => updateItemTotal(index)
+                                      })}
+                                      type="number"
+                                      className="input text-center w-16"
+                                      min="1"
+                                      max={item.availableStock}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuantityChange(index, (parseInt(item.quantity) || 1) + 1)}
+                                      className="btn btn-sm btn-secondary"
+                                      disabled={parseInt(item.quantity) >= item.availableStock}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
 
-                            <div className="min-w-[80px]">
-                              <input
-                                {...register(`items.${index}.discount`, {
-                                  onChange: () => updateItemTotal(index)
-                                })}
-                                type="number"
-                                className="input text-right"
-                                placeholder="0"
-                                min="0"
-                                max={parseFloat(item.unitPrice) * parseInt(item.quantity)}
-                              />
-                              <p className="text-xs text-gray-500 mt-1">Descuento</p>
-                            </div>
+                                <td className="py-4">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-2 text-gray-500">$</span>
+                                    <input
+                                      {...register(`items.${index}.unitPrice`, {
+                                        onChange: () => updateItemTotal(index)
+                                      })}
+                                      type="number"
+                                      className="input pl-6 w-full"
+                                      min="0"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                </td>
 
-                            <div className="text-right min-w-[120px]">
-                              <p className="font-bold text-lg">{formatCurrency(parseFloat(item.total) || 0)}</p>
-                            </div>
+                                <td className="py-4">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-2 text-gray-500">$</span>
+                                    <input
+                                      {...register(`items.${index}.discount`, {
+                                        onChange: () => updateItemTotal(index)
+                                      })}
+                                      type="number"
+                                      className="input pl-6 w-full"
+                                      min="0"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                </td>
 
-                            <button
-                              type="button"
-                              onClick={() => removeItem(index)}
-                              className="btn btn-sm btn-danger"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                                <td className="py-4 font-medium">
+                                  {formatCurrency(parseFloat(item.total) || 0)}
+                                </td>
+
+                                <td className="py-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeItem(index)}
+                                    className="btn btn-sm btn-danger"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Dropdown de sugerencias (posicionado dentro del wrapper) */}
+                    {selectedItemIndex !== null && tableDropdownProducts.length > 0 && suggestionStyle && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          zIndex: 50,
+                          top: suggestionStyle.top,
+                          left: suggestionStyle.left,
+                          width: suggestionStyle.width,
+                          maxHeight: '360px',
+                          overflow: 'auto',
+                        }}
+                        className="bg-white border border-gray-200 rounded-md shadow-lg"
+                      >
+                        {tableDropdownProducts.map(product => (
+                          <div
+                            key={product.id}
+                            className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            onMouseDown={(e) => { e.preventDefault(); selectProductFromTable(selectedItemIndex, product); }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 pr-4">
+                                <div className="font-medium text-gray-900">{product.name}</div>
+                                <div className="text-sm text-gray-500 mt-1">Código: {product.reference}</div>
+                                <div className="text-sm text-gray-500">Marca: {product.brand}</div>
+                                <div className="text-sm text-gray-500">Categoría: {product.category}</div>
+                                <div className="text-sm text-gray-500">Talla: {product.size} - Color: {product.color}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium text-lg text-primary-600">{formatCurrency(product.price)}</div>
+                                <div className="text-sm text-gray-500">Stock: {product.availableStock}</div>
+                              </div>
+                            </div>
                           </div>
-
-                          <input type="hidden" {...register(`items.${index}.productId`)} />
-                          <input type="hidden" {...register(`items.${index}.reference`)} />
-                          <input type="hidden" {...register(`items.${index}.name`)} />
-                          <input type="hidden" {...register(`items.${index}.size`)} />
-                          <input type="hidden" {...register(`items.${index}.unitPrice`)} />
-                          <input type="hidden" {...register(`items.${index}.total`)} />
-                          <input type="hidden" {...register(`items.${index}.availableStock`)} />
-                        </div>
-                      )
-                    })}
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -625,7 +854,6 @@ const NewSale = () => {
                           <select
                             {...register(`payments.${index}.paymentMethod`)}
                             className="select w-full"
-                            disabled={watchedPaymentType === 'SINGLE'}
                           >
                             <option value="CASH">Efectivo</option>
                             <option value="CARD">Tarjeta</option>
@@ -640,12 +868,15 @@ const NewSale = () => {
                             <input
                               {...register(`payments.${index}.amount`)}
                               type="number"
-                              className="input pl-6 text-right"
+                              className={`input pl-6 text-right ${watchedPaymentType === 'SINGLE' ? 'bg-gray-100' : ''}`}
                               placeholder="0"
                               min="0"
                               readOnly={watchedPaymentType === 'SINGLE'}
                             />
                           </div>
+                          {watchedPaymentType === 'SINGLE' && (
+                            <p className="text-xs text-gray-500 mt-1">Se actualiza automáticamente</p>
+                          )}
                         </div>
 
                         {watchedPaymentType === 'MIXED' && (
@@ -670,7 +901,7 @@ const NewSale = () => {
                       type="button"
                       onClick={() => appendPayment({
                         paymentMethod: 'CASH',
-                        amount: '', // Cambiado de 0 a string vacío para mostrar placeholder
+                        amount: '',
                         referenceNumber: '',
                         notes: ''
                       })}
@@ -768,7 +999,7 @@ const NewSale = () => {
                 <p>• Productos: {itemFields.length}</p>
                 <p>• Unidades: {watchedItems.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0)}</p>
                 <p>• Métodos de pago: {paymentFields.length}</p>
-                <p>• Empleado: {user?.firstName} {user?.lastName}</p>
+                <p>• Empleado: {user?.fullName || user?.username}</p>
               </div>
             </div>
           </div>

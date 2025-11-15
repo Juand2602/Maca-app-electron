@@ -30,7 +30,15 @@ const InventoryList = () => {
     filters,
     setFilters,
     clearFilters,
-    isLoading
+    isLoading,
+    fetchCategories,
+    fetchColors,
+    fetchMaterials,
+    categories,
+    colors,
+    materials,
+    fetchProductOptions,
+    isLoadingOptions
   } = inventoryStore
 
   const [showFilters, setShowFilters] = useState(false)
@@ -48,9 +56,10 @@ const InventoryList = () => {
   const filteredProducts = inventoryStore.getFilteredProducts()
 
   useEffect(() => {
-    // Cargar productos al montar el componente
+    // Cargar productos y opciones de filtros al montar el componente
     loadProducts()
     loadStats()
+    loadFilterOptions()
   }, [])
 
   const loadProducts = async () => {
@@ -63,6 +72,15 @@ const InventoryList = () => {
   const loadStats = async () => {
     const inventoryStats = await getInventoryStats()
     setStats(inventoryStats)
+  }
+
+  const loadFilterOptions = async () => {
+    try {
+      await fetchProductOptions()
+    } catch (error) {
+      console.error('Error al cargar opciones de filtro:', error)
+      toast.error('Error al cargar opciones de filtro')
+    }
   }
 
   useEffect(() => {
@@ -288,73 +306,98 @@ const InventoryList = () => {
           {/* Advanced Filters */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Categoría
-                  </label>
-                  <select
-                    value={filters.category}
-                    onChange={(e) => handleFilterChange('category', e.target.value)}
-                    className="select"
-                  >
-                    <option value="">Todas</option>
-                    <option value="Formal">Formal</option>
-                    <option value="Casual">Casual</option>
-                    <option value="Deportivo">Deportivo</option>
-                    <option value="Botas">Botas</option>
-                    <option value="Sandalias">Sandalias</option>
-                  </select>
+              {isLoadingOptions ? (
+                <div className="flex justify-center py-4">
+                  <div className="spinner h-6 w-6 mr-3"></div>
+                  <span>Cargando opciones de filtro...</span>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Categoría
+                    </label>
+                    <select
+                      value={filters.category}
+                      onChange={(e) => handleFilterChange('category', e.target.value)}
+                      className="select"
+                    >
+                      <option value="">Todas</option>
+                      {categories.map(category => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Color
-                  </label>
-                  <select
-                    value={filters.color}
-                    onChange={(e) => handleFilterChange('color', e.target.value)}
-                    className="select"
-                  >
-                    <option value="">Todos</option>
-                    <option value="Negro">Negro</option>
-                    <option value="Marrón">Marrón</option>
-                    <option value="Blanco">Blanco</option>
-                    <option value="Beige">Beige</option>
-                    <option value="Gris">Gris</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Color
+                    </label>
+                    <select
+                      value={filters.color}
+                      onChange={(e) => handleFilterChange('color', e.target.value)}
+                      className="select"
+                    >
+                      <option value="">Todos</option>
+                      {colors.map(color => (
+                        <option key={color} value={color}>
+                          {color}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Estado de Stock
-                  </label>
-                  <select
-                    value={filters.stockStatus}
-                    onChange={(e) => handleFilterChange('stockStatus', e.target.value)}
-                    className="select"
-                  >
-                    <option value="">Todos</option>
-                    <option value="low">Stock Bajo</option>
-                    <option value="out">Sin Stock</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Material
+                    </label>
+                    <select
+                      value={filters.material}
+                      onChange={(e) => handleFilterChange('material', e.target.value)}
+                      className="select"
+                    >
+                      <option value="">Todos</option>
+                      {materials.map(material => (
+                        <option key={material} value={material}>
+                          {material}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Estado del Producto
-                  </label>
-                  <select
-                    value={filters.productStatus}
-                    onChange={(e) => handleFilterChange('productStatus', e.target.value)}
-                    className="select"
-                  >
-                    <option value="">Todos</option>
-                    <option value="active">Activos</option>
-                    <option value="inactive">Inactivos</option>
-                  </select>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado de Stock
+                    </label>
+                    <select
+                      value={filters.stockStatus}
+                      onChange={(e) => handleFilterChange('stockStatus', e.target.value)}
+                      className="select"
+                    >
+                      <option value="">Todos</option>
+                      <option value="low">Stock Bajo</option>
+                      <option value="out">Sin Stock</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado del Producto
+                    </label>
+                    <select
+                      value={filters.productStatus}
+                      onChange={(e) => handleFilterChange('productStatus', e.target.value)}
+                      className="select"
+                    >
+                      <option value="">Todos</option>
+                      <option value="active">Activos</option>
+                      <option value="inactive">Inactivos</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
