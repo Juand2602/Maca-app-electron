@@ -11,7 +11,7 @@
     "start": "npx electron .",
     "download:node": "node scripts/download-node.js",
     "build": "npm run build:frontend && npm run build:backend",
-    "build:frontend": "cd frontend && npm run build",
+    "build:frontend": "cd frontend && npm run build && node ../scripts/copy-assets.js",
     "build:backend": "cd backend && npm install && npx prisma generate",
     "electron:build": "npm run build && electron-builder",
     "test:build": "node scripts/test-build.js",
