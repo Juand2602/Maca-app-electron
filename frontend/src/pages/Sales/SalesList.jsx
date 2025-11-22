@@ -53,19 +53,23 @@ const SalesList = () => {
   const loadSales = async () => {
     try {
       await fetchSales()
-      const salesStats = getSalesStats()
-      setStats(salesStats)
+      updateStats()
     } catch (error) {
       console.error('Error loading sales:', error)
       toast.error('Error al cargar las ventas')
     }
   }
 
+  // Función para actualizar estadísticas
+  const updateStats = () => {
+    const salesStats = getSalesStats()
+    setStats(salesStats)
+  }
+
   // Actualizar estadísticas cuando cambian las ventas
   useEffect(() => {
-    if (sales.length > 0) {
-      const salesStats = getSalesStats()
-      setStats(salesStats)
+    if (sales.length >= 0) {
+      updateStats()
     }
   }, [sales])
 
@@ -135,11 +139,12 @@ const SalesList = () => {
   }
 
   const handleDeleteSale = async (saleId) => {
-    if (window.confirm('¿Estás seguro de eliminar esta venta? Esta acción no se puede deshacer.')) {
+    if (window.confirm('¿Estás seguro de eliminar esta venta? Esta acción devolverá el stock y no se puede deshacer.')) {
       const result = await deleteSale(saleId)
       if (result.success) {
         toast.success('Venta eliminada exitosamente')
-        loadSales()
+        // Recargar ventas y actualizar estadísticas
+        await loadSales()
       } else {
         toast.error(result.error || 'Error al eliminar la venta')
       }
@@ -170,6 +175,22 @@ const SalesList = () => {
         <span>${formatCurrency(payment.amount)}</span>
       </div>
     `).join('')
+
+    // Calcular el descuento de cada item y total correcto
+    const itemsHtml = sale.items.map(item => {
+      const itemDiscount = item.discount || 0
+      const itemTotal = (item.quantity * item.unitPrice) - itemDiscount
+      return `
+        <div class="item">
+          <div>
+            ${item.productName} (${item.size})<br>
+            ${item.quantity} x ${formatCurrency(item.unitPrice)}
+            ${itemDiscount > 0 ? `<br>Desc: -${formatCurrency(itemDiscount)}` : ''}
+          </div>
+          <div>${formatCurrency(itemTotal)}</div>
+        </div>
+      `
+    }).join('')
 
     return `
       <!DOCTYPE html>
@@ -247,15 +268,7 @@ const SalesList = () => {
           
           <div class="section">
             <strong>PRODUCTOS:</strong>
-            ${sale.items.map(item => `
-              <div class="item">
-                <div>
-                  ${item.productName} (${item.size})<br>
-                  ${item.quantity} x ${formatCurrency(item.unitPrice)}
-                </div>
-                <div>${formatCurrency(item.subtotal)}</div>
-              </div>
-            `).join('')}
+            ${itemsHtml}
           </div>
           
           <div class="total-section">
@@ -308,7 +321,10 @@ const SalesList = () => {
   const calculatePaymentMethodStats = () => {
     const methodStats = {}
     
-    sales.forEach(sale => {
+    // Filtrar solo ventas completadas para las estadísticas
+    const completedSales = sales.filter(s => s.status === 'COMPLETED')
+    
+    completedSales.forEach(sale => {
       if (sale.payments && sale.payments.length > 0) {
         // Usar datos de sale_payments
         sale.payments.forEach(payment => {
@@ -755,7 +771,7 @@ const SalesList = () => {
           <div className="card-body">
             <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center">
               <DollarSign className="h-4 w-4 mr-2" />
-              Resumen Rápido
+              Resumen Rápido (Hoy)
             </h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">

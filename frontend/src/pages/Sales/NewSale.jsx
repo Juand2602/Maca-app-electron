@@ -15,7 +15,8 @@ import {
   CreditCard,
   ShoppingCart,
   DollarSign,
-  Package
+  Package,
+  Check
 } from 'lucide-react'
 import { useSalesStore } from '../../store/salesStore'
 import { useInventoryStore } from '../../store/inventoryStore'
@@ -42,7 +43,7 @@ const NewSale = () => {
   
   const productSearchRef = useRef(null)
   const tableWrapperRef = useRef(null)
-  const mainSearchInputRef = useRef(null) // nuevo: ref para el input principal
+  const mainSearchInputRef = useRef(null)
 
   const {
     register,
@@ -50,6 +51,7 @@ const NewSale = () => {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors }
   } = useForm({
     defaultValues: {
@@ -117,16 +119,7 @@ const NewSale = () => {
     loadProducts()
   }, [fetchProducts, products])
 
-  // CORREGIDO: Usamos useMemo para calcular el total de forma eficiente y estable
-  const calculateTotal = useMemo(() => {
-    return watchedItems.reduce((sum, item) => {
-      const quantity = parseInt(item.quantity) || 0
-      const price = parseFloat(item.unitPrice) || 0
-      const discount = parseFloat(item.discount) || 0
-      return sum + (quantity * price) - discount
-    }, 0)
-  }, [watchedItems])
-
+  // Función para calcular el subtotal
   const calculateSubtotal = () => {
     return watchedItems.reduce((sum, item) => {
       const quantity = parseInt(item.quantity) || 0
@@ -135,10 +128,16 @@ const NewSale = () => {
     }, 0)
   }
 
+  // Función para calcular el descuento total
   const calculateTotalDiscount = () => {
     return watchedItems.reduce((sum, item) => {
       return sum + (parseFloat(item.discount) || 0)
     }, 0)
+  }
+
+  // Calculamos el total (subtotal - descuento)
+  const calculateTotal = () => {
+    return calculateSubtotal() - calculateTotalDiscount()
   }
 
   const calculateTotalPayments = () => {
@@ -147,13 +146,26 @@ const NewSale = () => {
     }, 0)
   }
 
-  // CORREGIDO: Este useEffect ahora depende de calculateTotal, asegurando que se ejecute
-  // cada vez que el total de la venta cambia.
-  useEffect(() => {
-    if (watchedPaymentType === 'SINGLE' && watchedPayments.length > 0) {
-      setValue('payments.0.amount', calculateTotal.toString())
+  // NUEVO: Función para aplicar el descuento y actualizar totales
+  const applyDiscount = (index) => {
+    updateItemTotal(index)
+    
+    // Si es pago único, actualizar el monto del pago
+    if (watchedPaymentType === 'SINGLE') {
+      const newTotal = calculateTotal()
+      setValue('payments.0.amount', newTotal.toString())
     }
-  }, [calculateTotal, watchedPaymentType, watchedPayments.length, setValue])
+    
+    toast.success('Descuento aplicado')
+  }
+
+  // Actualizar pago único cuando cambia el tipo de pago o cuando se agregan/eliminan items
+  useEffect(() => {
+    if (watchedPaymentType === 'SINGLE' && paymentFields.length > 0) {
+      const total = calculateTotal()
+      setValue('payments.0.amount', total.toString())
+    }
+  }, [watchedPaymentType, paymentFields.length, watchedItems.length])
 
   // Cerrar dropdowns si se hace click fuera
   useEffect(() => {
@@ -186,7 +198,6 @@ const NewSale = () => {
   // --- LÓGICA PARA BÚSQUEDA PRINCIPAL ---
 
   const handleMainSearchClick = () => {
-    // Solo abrir si hay productos disponibles
     setShowMainDropdown(true)
     setMainDropdownProducts(availableProducts)
   }
@@ -219,6 +230,13 @@ const NewSale = () => {
       if (currentQuantity < product.availableStock) {
         setValue(`items.${existingIndex}.quantity`, currentQuantity + 1)
         updateItemTotal(existingIndex)
+        
+        // Actualizar pago único
+        if (watchedPaymentType === 'SINGLE') {
+          const newTotal = calculateTotal()
+          setValue('payments.0.amount', newTotal.toString())
+        }
+        
         toast.success('Cantidad actualizada')
       } else {
         toast.error('No hay suficiente stock disponible')
@@ -241,7 +259,6 @@ const NewSale = () => {
     setSearchTerm('')
     setShowMainDropdown(false)
 
-    // Evita que el input recupere foco y reabra el dropdown
     try {
       mainSearchInputRef.current?.blur()
     } catch (err) {
@@ -288,19 +305,22 @@ const NewSale = () => {
   }
 
   const selectProductFromTable = (index, product) => {
-    // Verificar si el producto ya está en la tabla
     const existingIndex = watchedItems.findIndex(item => 
       item.productId === product.productId && item.size === product.size
     )
 
     if (existingIndex >= 0 && existingIndex !== index) {
-      // Si ya existe en otro ítem, actualizamos la cantidad
       const currentQuantity = parseInt(watchedItems[existingIndex].quantity) || 0
       if (currentQuantity < product.availableStock) {
         setValue(`items.${existingIndex}.quantity`, currentQuantity + 1)
         updateItemTotal(existingIndex)
         
-        // Si el ítem actual está vacío, lo eliminamos
+        // Actualizar pago único
+        if (watchedPaymentType === 'SINGLE') {
+          const newTotal = calculateTotal()
+          setValue('payments.0.amount', newTotal.toString())
+        }
+        
         if (!watchedItems[index].productId) {
           removeItem(index)
         }
@@ -309,7 +329,6 @@ const NewSale = () => {
         toast.error('No hay suficiente stock disponible')
       }
     } else {
-      // Si no existe o es el mismo ítem, lo actualizamos
       setValue(`items.${index}.productId`, product.productId)
       setValue(`items.${index}.reference`, product.reference)
       setValue(`items.${index}.name`, product.name)
@@ -326,7 +345,6 @@ const NewSale = () => {
     setTableDropdownProducts([])
     setSuggestionStyle(null)
 
-    // Evita que el input de la fila recupere foco y reabra el dropdown
     try {
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur()
@@ -345,12 +363,6 @@ const NewSale = () => {
     const discount = parseFloat(item.discount) || 0
     const total = (quantity * unitPrice) - discount
     setValue(`items.${index}.total`, total)
-    
-    // Forzar actualización inmediata del pago único si aplica
-    if (watchedPaymentType === 'SINGLE') {
-      const newTotal = calculateSubtotal() - calculateTotalDiscount()
-      setValue('payments.0.amount', newTotal.toString())
-    }
   }
 
   const handleQuantityChange = (index, newQuantity) => {
@@ -361,15 +373,22 @@ const NewSale = () => {
     }
     setValue(`items.${index}.quantity`, newQuantity)
     updateItemTotal(index)
+    
+    // Actualizar pago único
+    if (watchedPaymentType === 'SINGLE') {
+      const newTotal = calculateTotal()
+      setValue('payments.0.amount', newTotal.toString())
+    }
   }
 
   const handlePaymentTypeChange = (type) => {
     setValue('paymentType', type)
     
     if (type === 'SINGLE') {
+      const total = calculateTotal()
       setValue('payments', [{
         paymentMethod: 'CASH',
-        amount: calculateTotal.toString(),
+        amount: total.toString(),
         referenceNumber: '',
         notes: ''
       }])
@@ -391,44 +410,58 @@ const NewSale = () => {
     }
   }
 
-  const onSubmit = async (data) => {
-    try {
-      // Validaciones
-      if (data.items.length === 0) {
-        throw new Error('Debe agregar al menos un producto')
+  const handleRemoveItem = (index) => {
+    removeItem(index)
+    
+    // Actualizar pago único después de eliminar
+    setTimeout(() => {
+      if (watchedPaymentType === 'SINGLE' && paymentFields.length > 0) {
+        const newTotal = calculateTotal()
+        setValue('payments.0.amount', newTotal.toString())
       }
+    }, 100)
+  }
 
-      if (!data.customer.name.trim()) {
-        throw new Error('El nombre del cliente es requerido')
-      }
+const onSubmit = async (data) => {
+  try {
+    // Validaciones
+    if (data.items.length === 0) {
+      throw new Error('Debe agregar al menos un producto')
+    }
 
-      const total = calculateTotal
-      const totalPayments = calculateTotalPayments()
+    if (!data.customer.name.trim()) {
+      throw new Error('El nombre del cliente es requerido')
+    }
 
-      if (totalPayments < total) {
-        throw new Error(`Los pagos son insuficientes. Total: ${formatCurrency(total)}, Pagado: ${formatCurrency(totalPayments)}`)
-      }
+    const total = calculateTotal()
+    const totalPayments = calculateTotalPayments()
 
-      // Preparar datos para la venta
-      const saleData = {
-        customerName: data.customer.name.trim(),
-        customerDocument: data.customer.document || '',
-        customerPhone: data.customer.phone || '',
-        discount: calculateTotalDiscount(),
-        tax: 0,
-        notes: data.notes || '',
-        items: data.items.map(item => ({
-          productId: item.productId,
-          size: item.size,
-          quantity: parseInt(item.quantity)
-        })),
-        payments: data.payments.map(payment => ({
-          paymentMethod: payment.paymentMethod,
-          amount: parseFloat(payment.amount) || 0,
-          referenceNumber: payment.referenceNumber || null,
-          notes: payment.notes || null
-        }))
-      }
+    if (totalPayments < total) {
+      throw new Error(`Los pagos son insuficientes. Total: ${formatCurrency(total)}, Pagado: ${formatCurrency(totalPayments)}`)
+    }
+
+    // Preparar datos para la venta
+    const saleData = {
+      customerName: data.customer.name.trim(),
+      customerDocument: data.customer.document || '',
+      customerPhone: data.customer.phone || '',
+      discount: calculateTotalDiscount(),
+      tax: 0,
+      notes: data.notes || '',
+      items: data.items.map(item => ({
+        productId: item.productId,
+        size: item.size,
+        quantity: parseInt(item.quantity),
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        discount: parseFloat(item.discount) || 0  // AGREGADO: enviar el descuento individual
+      })),
+      payments: data.payments.map(payment => ({
+        paymentMethod: payment.paymentMethod,
+        amount: parseFloat(payment.amount) || 0,
+        referenceNumber: payment.referenceNumber || null,
+        notes: payment.notes || null
+      }))
+    }
 
       // Crear la venta
       const result = await createSale(saleData)
@@ -446,7 +479,7 @@ const NewSale = () => {
     }
   }
 
-  const total = calculateTotal
+  const total = calculateTotal()
   const totalPayments = calculateTotalPayments()
   const difference = totalPayments - total
 
@@ -538,12 +571,11 @@ const NewSale = () => {
                     <Search className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
-                    ref={mainSearchInputRef} // agregado
+                    ref={mainSearchInputRef}
                     type="text"
                     value={searchTerm}
                     onChange={(e) => handleMainSearchChange(e.target.value)}
                     onClick={handleMainSearchClick}
-                    
                     className="input pl-10"
                     placeholder="Buscar por nombre, referencia, marca o categoría..."
                   />
@@ -646,7 +678,15 @@ const NewSale = () => {
                                     </button>
                                     <input
                                       {...register(`items.${index}.quantity`, {
-                                        onChange: () => updateItemTotal(index)
+                                        onChange: (e) => {
+                                          updateItemTotal(index)
+                                          if (watchedPaymentType === 'SINGLE') {
+                                            setTimeout(() => {
+                                              const newTotal = calculateTotal()
+                                              setValue('payments.0.amount', newTotal.toString())
+                                            }, 100)
+                                          }
+                                        }
                                       })}
                                       type="number"
                                       className="input text-center w-16"
@@ -669,28 +709,42 @@ const NewSale = () => {
                                     <span className="absolute left-2 top-2 text-gray-500">$</span>
                                     <input
                                       {...register(`items.${index}.unitPrice`, {
-                                        onChange: () => updateItemTotal(index)
+                                        onChange: (e) => {
+                                          updateItemTotal(index)
+                                          if (watchedPaymentType === 'SINGLE') {
+                                            setTimeout(() => {
+                                              const newTotal = calculateTotal()
+                                              setValue('payments.0.amount', newTotal.toString())
+                                            }, 100)
+                                          }
+                                        }
                                       })}
                                       type="number"
                                       className="input pl-6 w-full"
                                       min="0"
-                                      step="0.01"
                                     />
                                   </div>
                                 </td>
 
                                 <td className="py-4">
-                                  <div className="relative">
-                                    <span className="absolute left-2 top-2 text-gray-500">$</span>
-                                    <input
-                                      {...register(`items.${index}.discount`, {
-                                        onChange: () => updateItemTotal(index)
-                                      })}
-                                      type="number"
-                                      className="input pl-6 w-full"
-                                      min="0"
-                                      step="0.01"
-                                    />
+                                  <div className="flex items-center space-x-2">
+                                    <div className="relative flex-1">
+                                      <span className="absolute left-2 top-2 text-gray-500">$</span>
+                                      <input
+                                        {...register(`items.${index}.discount`)}
+                                        type="number"
+                                        className="input pl-6 w-full"
+                                        min="0"
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyDiscount(index)}
+                                      className="btn btn-sm btn-primary"
+                                      title="Aplicar descuento"
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </button>
                                   </div>
                                 </td>
 
@@ -701,7 +755,7 @@ const NewSale = () => {
                                 <td className="py-4">
                                   <button
                                     type="button"
-                                    onClick={() => removeItem(index)}
+                                    onClick={() => handleRemoveItem(index)}
                                     className="btn btn-sm btn-danger"
                                   >
                                     <Trash2 className="h-4 w-4" />

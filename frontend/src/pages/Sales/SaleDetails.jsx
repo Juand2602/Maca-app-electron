@@ -84,15 +84,21 @@ const SaleDetails = () => {
     return sale.payments && sale.payments.length > 1
   }
 
-  // Función para obtener el método de pago principal
-  const getMainPaymentMethod = (sale) => {
-    if (isMixedPayment(sale)) {
-      return 'MIXED'
+  // Función para calcular el descuento de un item individual
+  const getItemDiscount = (item) => {
+    // Si el item tiene descuento almacenado, usarlo
+    if (item.discount !== undefined && item.discount !== null) {
+      return parseFloat(item.discount) || 0
     }
-    if (sale.payments && sale.payments.length > 0) {
-      return sale.payments[0].paymentMethod
-    }
-    return 'UNKNOWN'
+    // Si no, calcular la diferencia entre subtotal teórico y subtotal real
+    const theoreticalSubtotal = item.quantity * item.unitPrice
+    return theoreticalSubtotal - item.subtotal
+  }
+
+  // Función para calcular el total real de un item (con descuento)
+  const getItemTotal = (item) => {
+    const discount = getItemDiscount(item)
+    return (item.quantity * item.unitPrice) - discount
   }
 
   const printSale = () => {
@@ -175,8 +181,8 @@ const SaleDetails = () => {
         </head>
         <body>
           <div class="header">
-            <div class="title">SISTEMA ADMINISTRATIVO</div>
-            <div class="subtitle">Empresa de Calzado</div>
+            <div class="title">JOVITA CALZADO C-25</div>
+            <div class="subtitle">Sistema Administrativo</div>
             <div class="subtitle">Ticket de Venta</div>
           </div>
           
@@ -195,15 +201,19 @@ const SaleDetails = () => {
           
           <div class="section">
             <strong>PRODUCTOS:</strong>
-            ${sale.items.map(item => `
+            ${sale.items.map(item => {
+              const itemDiscount = getItemDiscount(item)
+              const itemTotal = getItemTotal(item)
+              return `
               <div class="item">
                 <div>
                   ${item.productName} (${item.size})<br>
                   ${item.quantity} x ${formatCurrency(item.unitPrice)}
+                  ${itemDiscount > 0 ? `<br>Desc: -${formatCurrency(itemDiscount)}` : ''}
                 </div>
-                <div>${formatCurrency(item.subtotal)}</div>
+                <div>${formatCurrency(itemTotal)}</div>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
           
           <div class="total-section">
@@ -432,25 +442,39 @@ const SaleDetails = () => {
                       <th>Producto</th>
                       <th>Cantidad</th>
                       <th>Precio Unit.</th>
+                      <th>Descuento</th>
                       <th>Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sale.items.map((item, index) => (
-                      <tr key={index}>
-                        <td>
-                          <div>
-                            <p className="font-medium text-gray-900">{item.productName}</p>
-                            <p className="text-sm text-gray-500">
-                              {item.productCode} - Talla {item.size}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="font-medium">{item.quantity}</td>
-                        <td>{formatCurrency(item.unitPrice)}</td>
-                        <td className="font-medium">{formatCurrency(item.subtotal)}</td>
-                      </tr>
-                    ))}
+                    {sale.items.map((item, index) => {
+                      const itemDiscount = getItemDiscount(item)
+                      const itemTotal = getItemTotal(item)
+                      return (
+                        <tr key={index}>
+                          <td>
+                            <div>
+                              <p className="font-medium text-gray-900">{item.productName}</p>
+                              <p className="text-sm text-gray-500">
+                                {item.productCode} - Talla {item.size}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="font-medium">{item.quantity}</td>
+                          <td>{formatCurrency(item.unitPrice)}</td>
+                          <td>
+                            {itemDiscount > 0 ? (
+                              <span className="text-red-600 font-medium">
+                                -{formatCurrency(itemDiscount)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="font-medium">{formatCurrency(itemTotal)}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

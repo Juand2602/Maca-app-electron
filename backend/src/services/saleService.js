@@ -29,7 +29,7 @@ class SaleService {
       const product = await prisma.product.findFirst({
         where: { 
           id: parseInt(itemData.productId),
-          warehouse: warehouse // NUEVO: Solo productos de esta bodega
+          warehouse: warehouse
         },
         include: {
           stocks: {
@@ -64,23 +64,32 @@ class SaleService {
         );
       }
       
+      // CORREGIDO: Incluir precio unitario y descuento del item
+      const itemUnitPrice = itemData.unitPrice ? parseFloat(itemData.unitPrice) : product.salePrice;
+      const itemDiscount = itemData.discount ? parseFloat(itemData.discount) : 0;
+      
       itemsWithProducts.push({
         productId: product.id,
         productName: product.name,
         productCode: product.code,
         size: itemData.size,
         quantity: itemData.quantity,
-        unitPrice: product.salePrice,
+        unitPrice: itemUnitPrice,
+        discount: itemDiscount,
         stockId: stock.id
       });
     }
     
-    // Calcular subtotal de items
-    const subtotal = itemsWithProducts.reduce((sum, item) => {
-      return sum + (item.unitPrice * item.quantity);
-    }, 0);
-    
-    const discount = data.discount ? parseFloat(data.discount) : 0;
+    // CORREGIDO: Calcular subtotal de items Y descuentos individuales
+    let subtotal = 0;
+    let totalItemDiscounts = 0;
+
+    itemsWithProducts.forEach((item) => {
+      subtotal += item.unitPrice * item.quantity;
+      totalItemDiscounts += item.discount;
+    });
+
+    const discount = totalItemDiscounts; // El descuento total es la suma de descuentos individuales
     const tax = data.tax ? parseFloat(data.tax) : 0;
     const total = subtotal - discount + tax;
     
@@ -124,7 +133,7 @@ class SaleService {
           discount,
           tax,
           total,
-          warehouse: warehouse, // NUEVO: Asignar bodega
+          warehouse: warehouse,
           status: 'COMPLETED',
           notes: data.notes,
           items: {
@@ -133,7 +142,8 @@ class SaleService {
               size: item.size,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
-              subtotal: item.unitPrice * item.quantity
+              discount: item.discount, // AGREGADO: guardar descuento individual
+              subtotal: (item.unitPrice * item.quantity) - item.discount // CORREGIDO: subtotal con descuento
             }))
           },
           payments: {
@@ -193,7 +203,7 @@ class SaleService {
     const sale = await prisma.sale.findFirst({
       where: { 
         id: parseInt(id),
-        warehouse: warehouse // NUEVO: Filtrar por bodega
+        warehouse: warehouse
       },
       include: {
         user: {
@@ -232,7 +242,7 @@ class SaleService {
     const sale = await prisma.sale.findFirst({
       where: { 
         saleNumber,
-        warehouse: warehouse // NUEVO: Filtrar por bodega
+        warehouse: warehouse
       },
       include: {
         user: {
@@ -269,7 +279,7 @@ class SaleService {
    */
   async getAllSales(warehouse) {
     const sales = await prisma.sale.findMany({
-      where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
+      where: { warehouse: warehouse },
       include: {
         user: {
           select: {
@@ -305,7 +315,7 @@ class SaleService {
     
     const [sales, total] = await Promise.all([
       prisma.sale.findMany({
-        where: { warehouse: warehouse }, // NUEVO: Filtrar por bodega
+        where: { warehouse: warehouse },
         skip,
         take: limit,
         include: {
@@ -332,7 +342,7 @@ class SaleService {
         }
       }),
       prisma.sale.count({
-        where: { warehouse: warehouse } // NUEVO: Contar solo de esta bodega
+        where: { warehouse: warehouse }
       })
     ]);
     
@@ -353,7 +363,7 @@ class SaleService {
   async getSalesByDateRange(startDate, endDate, warehouse) {
     const sales = await prisma.sale.findMany({
       where: {
-        warehouse: warehouse, // NUEVO: Filtrar por bodega
+        warehouse: warehouse,
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -392,7 +402,7 @@ class SaleService {
   async searchSales(searchTerm, warehouse) {
     const sales = await prisma.sale.findMany({
       where: {
-        warehouse: warehouse, // NUEVO: Filtrar por bodega
+        warehouse: warehouse,
         OR: [
           { saleNumber: { contains: searchTerm, mode: 'insensitive' } },
           { customerName: { contains: searchTerm, mode: 'insensitive' } },
@@ -434,7 +444,7 @@ class SaleService {
     const result = await prisma.sale.aggregate({
       where: {
         status: 'COMPLETED',
-        warehouse: warehouse, // NUEVO: Filtrar por bodega
+        warehouse: warehouse,
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -455,7 +465,7 @@ class SaleService {
     return await prisma.sale.count({
       where: {
         status: 'COMPLETED',
-        warehouse: warehouse, // NUEVO: Filtrar por bodega
+        warehouse: warehouse,
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate)
@@ -471,7 +481,7 @@ class SaleService {
     const sale = await prisma.sale.findFirst({
       where: { 
         id: parseInt(id),
-        warehouse: warehouse // NUEVO: Verificar bodega
+        warehouse: warehouse
       },
       include: {
         items: true
@@ -530,7 +540,7 @@ class SaleService {
     
     const count = await prisma.sale.count({
       where: {
-        warehouse: warehouse, // NUEVO: Contar solo de esta bodega
+        warehouse: warehouse,
         saleNumber: {
           startsWith: prefix
         }
@@ -561,7 +571,7 @@ class SaleService {
       discount: sale.discount,
       tax: sale.tax,
       total: sale.total,
-      warehouse: sale.warehouse, // NUEVO: Incluir bodega en respuesta
+      warehouse: sale.warehouse,
       status: sale.status,
       notes: sale.notes,
       totalItems,
@@ -575,6 +585,7 @@ class SaleService {
         size: item.size,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        discount: item.discount || 0, // AGREGADO: incluir descuento en respuesta
         subtotal: item.subtotal
       })) : [],
       payments: sale.payments ? sale.payments.map(payment => ({

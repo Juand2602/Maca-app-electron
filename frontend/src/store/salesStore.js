@@ -77,17 +77,20 @@ export const useSalesStore = create((set, get) => ({
     }
   },
 
-  // Eliminar venta (solo admin)
+  // Eliminar venta (solo admin) - CORREGIDO
   deleteSale: async (id) => {
     set({ isLoading: true, error: null })
     
     try {
       await salesService.cancelSale(id)
       
-      set(state => ({
-        sales: state.sales.filter(s => s.id !== parseInt(id)),
+      // CORREGIDO: Recargar todas las ventas desde el servidor
+      const updatedSales = await salesService.getAllSales()
+      
+      set({
+        sales: updatedSales,
         isLoading: false
-      }))
+      })
 
       return { success: true }
     } catch (error) {
@@ -146,9 +149,20 @@ export const useSalesStore = create((set, get) => ({
       )
     }
 
-    // Filtro por método de pago
+    // Filtro por método de pago - CORREGIDO para soportar pagos mixtos
     if (filters.paymentMethod) {
-      filtered = filtered.filter(sale => sale.paymentMethod === filters.paymentMethod)
+      filtered = filtered.filter(sale => {
+        // Si es pago mixto
+        if (sale.isMixedPayment) {
+          return filters.paymentMethod === 'MIXED'
+        }
+        // Si tiene payments array
+        if (sale.payments && sale.payments.length > 0) {
+          return sale.payments[0].paymentMethod === filters.paymentMethod
+        }
+        // Legacy: usar paymentMethod directo
+        return sale.paymentMethod === filters.paymentMethod
+      })
     }
 
     // Filtro por estado
@@ -188,77 +202,101 @@ export const useSalesStore = create((set, get) => ({
     return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   },
 
-  // Estadísticas de ventas
+  // Estadísticas de ventas - CORREGIDO
   getSalesStats: () => {
     const { sales } = get()
     const today = new Date()
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     
+    // Filtrar solo ventas completadas para estadísticas
+    const completedSales = sales.filter(sale => sale.status === 'COMPLETED')
+    
     // Ventas de hoy
-    const todaySales = sales.filter(sale => new Date(sale.createdAt) >= startOfToday)
+    const todaySales = completedSales.filter(sale => new Date(sale.createdAt) >= startOfToday)
     
     // Ventas de esta semana
     const startOfWeek = new Date(startOfToday)
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
-    const weekSales = sales.filter(sale => new Date(sale.createdAt) >= startOfWeek)
+    const weekSales = completedSales.filter(sale => new Date(sale.createdAt) >= startOfWeek)
     
     // Ventas de este mes
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-    const monthSales = sales.filter(sale => new Date(sale.createdAt) >= startOfMonth)
+    const monthSales = completedSales.filter(sale => new Date(sale.createdAt) >= startOfMonth)
 
     const stats = {
       // Hoy
       todayStats: {
         count: todaySales.length,
         total: todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0),
-        items: todaySales.reduce((sum, sale) => sum + (sale.totalItems || 0), 0)
+        items: todaySales.reduce((sum, sale) => {
+          // Calcular items correctamente
+          const saleItems = sale.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0
+          return sum + saleItems
+        }, 0)
       },
       
       // Esta semana
       weekStats: {
         count: weekSales.length,
         total: weekSales.reduce((sum, sale) => sum + (sale.total || 0), 0),
-        items: weekSales.reduce((sum, sale) => sum + (sale.totalItems || 0), 0)
+        items: weekSales.reduce((sum, sale) => {
+          const saleItems = sale.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0
+          return sum + saleItems
+        }, 0)
       },
       
       // Este mes
       monthStats: {
         count: monthSales.length,
         total: monthSales.reduce((sum, sale) => sum + (sale.total || 0), 0),
-        items: monthSales.reduce((sum, sale) => sum + (sale.totalItems || 0), 0)
+        items: monthSales.reduce((sum, sale) => {
+          const saleItems = sale.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0
+          return sum + saleItems
+        }, 0)
       },
 
-      // Métodos de pago más usados
-      paymentMethods: {
-        'CASH': sales.reduce((count, sale) => 
-          count + (sale.paymentMethod === 'CASH' ? 1 : 0), 0),
-        'CARD': sales.reduce((count, sale) => 
-          count + (sale.paymentMethod === 'CARD' ? 1 : 0), 0),
-        'TRANSFER': sales.reduce((count, sale) => 
-          count + (sale.paymentMethod === 'TRANSFER' ? 1 : 0), 0),
-        'MIXED': sales.reduce((count, sale) => 
-          count + (sale.paymentMethod === 'MIXED' ? 1 : 0), 0)
-      },
+      // Métodos de pago más usados - CORREGIDO
+      paymentMethods: (() => {
+        const methods = {}
+        completedSales.forEach(sale => {
+          if (sale.payments && sale.payments.length > 0) {
+            // Usar datos de sale_payments
+            sale.payments.forEach(payment => {
+              const method = payment.paymentMethod
+              methods[method] = (methods[method] || 0) + 1
+            })
+          } else if (sale.paymentMethod) {
+            // Datos legacy
+            const method = sale.paymentMethod
+            methods[method] = (methods[method] || 0) + 1
+          }
+        })
+        return methods
+      })(),
 
-      // Productos más vendidos
+      // Productos más vendidos - CORREGIDO
       topProducts: (() => {
         const productStats = {}
-        sales.forEach(sale => {
-          sale.items.forEach(item => {
-            if (!productStats[item.productCode]) {
-              productStats[item.productCode] = {
-                reference: item.productCode,
-                name: item.productName,
-                quantity: 0,
-                total: 0
+        completedSales.forEach(sale => {
+          if (sale.items && Array.isArray(sale.items)) {
+            sale.items.forEach(item => {
+              const key = item.productCode || item.productId
+              if (!productStats[key]) {
+                productStats[key] = {
+                  reference: item.productCode || '',
+                  name: item.productName || 'Sin nombre',
+                  quantity: 0,
+                  total: 0
+                }
               }
-            }
-            productStats[item.productCode].quantity += item.quantity
-            productStats[item.productCode].total += item.subtotal
-          })
+              productStats[key].quantity += item.quantity || 0
+              productStats[key].total += item.subtotal || 0
+            })
+          }
         })
         
         return Object.values(productStats)
+          .filter(p => p.quantity > 0)
           .sort((a, b) => b.quantity - a.quantity)
           .slice(0, 5)
       })()
