@@ -1,6 +1,6 @@
 {
   "name": "sistema-calzado",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Sistema de gestión para calzado Maca",
   "main": "electron/main.js",
   "scripts": {
