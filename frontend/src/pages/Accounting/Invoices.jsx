@@ -357,7 +357,7 @@ const Invoices = () => {
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <Link to="/accounting/invoices/add" className="btn btn-primary">
+          <Link to="/invoices/add" className="btn btn-primary">
             <Plus className="h-4 w-4 mr-2" />
             Nueva Factura
           </Link>
@@ -615,7 +615,7 @@ const Invoices = () => {
                         <td>
                           <div className="flex space-x-2">
                             <Link
-                              to={`/accounting/invoices/${invoice.id}`}
+                              to={`/invoices/${invoice.id}`}
                               className="btn btn-sm btn-secondary"
                               title="Ver detalles"
                             >
@@ -699,7 +699,7 @@ const Invoices = () => {
             }
           </p>
           {!searchTerm && !Object.values(filters).some(f => f && f !== 'month') && (
-            <Link to="/accounting/invoices/add" className="btn btn-primary">
+            <Link to="/invoices/add" className="btn btn-primary">
               <Plus className="h-4 w-4 mr-2" />
               Nueva Factura
             </Link>

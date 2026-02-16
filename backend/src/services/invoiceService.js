@@ -7,75 +7,61 @@ class InvoiceService {
    * Crear factura
    */
   async createInvoice(data, userId, warehouse) {
-    // Verificar que el proveedor existe EN LA MISMA BODEGA
-    const provider = await prisma.provider.findFirst({
-      where: { 
-        id: parseInt(data.providerId),
-        warehouse: warehouse // NUEVO: Verificar bodega
-      }
-    });
-    
-    if (!provider) {
-      throw new Error('Proveedor no encontrado en esta bodega');
+  const provider = await prisma.provider.findFirst({
+    where: { 
+      id: parseInt(data.providerId),
+      warehouse: warehouse
     }
-    
-    // Verificar número de factura único EN LA MISMA BODEGA
-    const existingInvoice = await prisma.invoice.findFirst({
-      where: { 
-        invoiceNumber: data.invoiceNumber,
-        warehouse: warehouse // NUEVO: Verificar en la misma bodega
-      }
-    });
-    
-    if (existingInvoice) {
-      throw new Error('El número de factura ya existe en esta bodega');
-    }
-    
-    const subtotal = parseFloat(data.subtotal);
-    const tax = data.tax ? parseFloat(data.tax) : 0;
-    const discount = data.discount ? parseFloat(data.discount) : 0;
-    const total = parseFloat(data.total);
-    const balance = total;
-    
-    const status = this.determineStatus(0, balance, new Date(data.dueDate));
-    
-    // Crear factura
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber: data.invoiceNumber,
-        providerId: parseInt(data.providerId),
-        userId: userId ? parseInt(userId) : null,
-        invoiceDate: new Date(data.issueDate),
-        dueDate: new Date(data.dueDate),
-        subtotal,
-        tax,
-        discount,
-        total,
-        warehouse: warehouse, // NUEVO: Asignar bodega
-        status,
-        notes: data.notes
-      },
-      include: {
-        provider: {
-          select: {
-            id: true,
-            name: true,
-            document: true
-          }
-        },
-        user: {
-          select: {
-            id: true,
-            username: true,
-            fullName: true
-          }
-        },
-        payments: true
-      }
-    });
-    
-    return this.mapToResponse(invoice);
+  });
+  
+  if (!provider) {
+    throw new Error('Proveedor no encontrado en esta bodega');
   }
+  
+  const existingInvoice = await prisma.invoice.findFirst({
+    where: { 
+      invoiceNumber: data.invoiceNumber,
+      warehouse: warehouse
+    }
+  });
+  
+  if (existingInvoice) {
+    throw new Error('El número de factura ya existe en esta bodega');
+  }
+  
+  const subtotal = parseFloat(data.subtotal);
+  const tax = data.tax ? parseFloat(data.tax) : 0;
+  // ✅ Sin discount — campo no existe en el schema
+  const total = subtotal + tax;
+  const balance = total;
+  
+  const status = this.determineStatus(0, balance, new Date(data.dueDate));
+  
+  // ✅ providerId directo (sí existe como campo escalar en el schema)
+  // ✅ Sin discount
+  const invoice = await prisma.invoice.create({
+    data: {
+      invoiceNumber: data.invoiceNumber,
+      providerId: data.providerId ? parseInt(data.providerId) : null,
+      userId: userId ? parseInt(userId) : null,
+      invoiceDate: new Date(data.issueDate),
+      dueDate: new Date(data.dueDate),
+      subtotal,
+      tax,
+      total,
+      warehouse: warehouse,
+      status,
+      notes: data.notes || ''
+    },
+    include: {
+      provider: { select: { id: true, name: true, document: true } },
+      user: { select: { id: true, username: true, fullName: true } },
+      payments: true
+    }
+  });
+  
+  return this.mapToResponse(invoice);
+}
   
   /**
    * Agregar pago a factura
@@ -117,7 +103,7 @@ class InvoiceService {
           paymentDate: new Date(data.paymentDate),
           amount: paymentAmount,
           paymentMethod: data.paymentMethod,
-          reference: data.referenceNumber,
+          reference: data.reference,
           notes: data.notes
         }
       });

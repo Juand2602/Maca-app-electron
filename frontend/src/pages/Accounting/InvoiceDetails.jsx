@@ -2,18 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { 
   ArrowLeft, 
-  Edit, 
   FileText,
   Calendar,
-  User,
   Building,
-  DollarSign,
   CheckCircle,
   Clock,
   XCircle,
   AlertCircle,
-  Download,
-  Printer
 } from 'lucide-react'
 import { accountingService } from '../../services/accountingService'
 import toast from 'react-hot-toast'
@@ -25,19 +20,17 @@ const InvoiceDetails = () => {
   const [invoice, setInvoice] = useState(null)
   const [payments, setPayments] = useState([])
 
-  // Cargar datos de la factura al montar el componente
   useEffect(() => {
     const fetchInvoiceData = async () => {
       try {
+        // ✅ CORREGIDO: los pagos vienen incluidos en la factura,
+        // no hace falta una segunda llamada a getPaymentsByInvoice
         const invoiceData = await accountingService.getInvoiceById(id)
         setInvoice(invoiceData)
-        
-        // Cargar pagos relacionados
-        const paymentsData = await accountingService.getPaymentsByInvoice(id)
-        setPayments(paymentsData)
+        setPayments(invoiceData.payments || [])
       } catch (error) {
         toast.error('Error al cargar datos de la factura')
-        navigate('/accounting/invoices')
+        navigate('/invoices') // ✅ CORREGIDO: ruta correcta
       } finally {
         setIsLoading(false)
       }
@@ -97,12 +90,13 @@ const InvoiceDetails = () => {
     return diffDays > 0 ? diffDays : 0
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
-  const handleDownloadPDF = () => {
-    toast.info('Función de descarga PDF próximamente')
+  const getPaymentMethodText = (method) => {
+    switch (method) {
+      case 'TRANSFER': return 'Transferencia'
+      case 'CASH': return 'Efectivo'
+      case 'CARD': return 'Tarjeta'
+      default: return method
+    }
   }
 
   if (isLoading) {
@@ -119,7 +113,8 @@ const InvoiceDetails = () => {
         <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Factura no encontrada</h3>
         <p className="text-gray-500 mb-4">La factura que buscas no existe o ha sido eliminada</p>
-        <Link to="/accounting/invoices" className="btn btn-primary">
+        {/* ✅ CORREGIDO: ruta correcta */}
+        <Link to="/invoices" className="btn btn-primary">
           Volver a facturas
         </Link>
       </div>
@@ -134,8 +129,9 @@ const InvoiceDetails = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center">
+          {/* ✅ CORREGIDO: ruta correcta */}
           <button
-            onClick={() => navigate('/accounting/invoices')}
+            onClick={() => navigate('/invoices')}
             className="btn btn-sm btn-secondary mr-4"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -232,12 +228,6 @@ const InvoiceDetails = () => {
                     <span className="text-gray-600">IVA:</span>
                     <span className="font-medium">{formatCurrency(invoice.tax)}</span>
                   </div>
-                  {invoice.discount > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Descuento:</span>
-                      <span className="font-medium">-{formatCurrency(invoice.discount)}</span>
-                    </div>
-                  )}
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <div className="flex justify-between">
                       <span className="font-semibold text-gray-900">Total:</span>
@@ -296,39 +286,27 @@ const InvoiceDetails = () => {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Número</th>
                     <th>Fecha</th>
                     <th>Monto</th>
                     <th>Método</th>
                     <th>Referencia</th>
-                    <th>Registrado por</th>
-                    <th>Acciones</th>
+                    <th>Notas</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payments.map((payment) => (
                     <tr key={payment.id}>
-                      <td className="font-mono">{payment.paymentNumber}</td>
                       <td>{formatDate(payment.paymentDate)}</td>
-                      <td className="font-medium text-green-600">{formatCurrency(payment.amount)}</td>
+                      <td className="font-medium text-green-600">
+                        {formatCurrency(payment.amount)}
+                      </td>
                       <td>
                         <span className="badge badge-secondary">
-                          {payment.paymentMethod}
+                          {getPaymentMethodText(payment.paymentMethod)}
                         </span>
                       </td>
-                      <td>{payment.referenceNumber || '-'}</td>
-                      <td>{payment.userName || '-'}</td>
-                      <td>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => toast.info('Ver detalles próximamente')}
-                            className="btn btn-sm btn-secondary"
-                            title="Ver detalles"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
+                      <td>{payment.reference || '-'}</td>
+                      <td>{payment.notes || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -338,9 +316,7 @@ const InvoiceDetails = () => {
             <div className="text-center py-8">
               <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No hay pagos registrados</h3>
-              <p className="text-gray-500 mb-4">
-                Esta factura aún no tiene pagos registrados
-              </p>
+              <p className="text-gray-500">Esta factura aún no tiene pagos registrados</p>
             </div>
           )}
         </div>

@@ -32,7 +32,7 @@ const AddInvoice = () => {
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     subtotal: 0,
     tax: 0,
-    discount: 0,
+    // ✅ ELIMINADO: discount — no existe en el schema de la BD
     total: 0,
     description: '',
     notes: ''
@@ -42,7 +42,6 @@ const AddInvoice = () => {
     { description: '', quantity: 1, unitPrice: 0, total: 0, productId: null }
   ])
 
-  // Cargar proveedores y productos al montar el componente
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -65,7 +64,6 @@ const AddInvoice = () => {
     fetchData()
   }, [])
 
-  // Generar número de factura automáticamente
   useEffect(() => {
     const today = new Date()
     const year = today.getFullYear()
@@ -79,15 +77,16 @@ const AddInvoice = () => {
     }))
   }, [])
 
-  // Calcular totales cuando cambian los ítems o descuento
+  // ✅ CORREGIDO: solo depende de items, sin discount
   useEffect(() => {
     calculateTotals()
-  }, [items, formData.discount])
+  }, [items])
 
+  // ✅ CORREGIDO: total = subtotal + tax, sin descuento
   const calculateTotals = () => {
     const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0)
-    const tax = subtotal * 0.19 // 19% IVA
-    const total = subtotal + tax - (parseFloat(formData.discount) || 0)
+    const tax = subtotal * 0.19
+    const total = subtotal + tax
 
     setFormData(prev => ({
       ...prev,
@@ -158,7 +157,6 @@ const AddInvoice = () => {
     setSuggestionStyle(null)
   }
 
-  // Mostrar sugerencias: calculamos top y ancho relativo al wrapper
   const showProductSuggestions = (index, e) => {
     setSelectedItemIndex(index)
     setFilteredProducts(products)
@@ -167,11 +165,8 @@ const AddInvoice = () => {
       const wrapperRect = tableWrapperRef.current?.getBoundingClientRect()
       const inputRect = e?.target?.getBoundingClientRect()
       if (wrapperRect && inputRect) {
-        // top relativo al wrapper
-        const top = inputRect.bottom - wrapperRect.top + 6 // separación
-        // left: 0 para alinear al inicio del wrapper
+        const top = inputRect.bottom - wrapperRect.top + 6
         const left = 0
-        // ancho: todo el ancho del wrapper
         const width = wrapperRect.width
         setSuggestionStyle({ top: `${top}px`, left: `${left}px`, width: `${width}px` })
       } else {
@@ -182,7 +177,6 @@ const AddInvoice = () => {
     }
   }
 
-  // Cerrar dropdown si se hace click fuera del wrapper
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (tableWrapperRef.current && !tableWrapperRef.current.contains(e.target)) {
@@ -227,8 +221,9 @@ const AddInvoice = () => {
 
       const itemsDescription = items.map(item =>
         `${item.description} - ${item.quantity} unidades`
-      ).join(', ');
+      ).join(', ')
 
+      // ✅ CORREGIDO: sin discount en el payload
       const invoiceData = {
         invoiceNumber: formData.invoiceNumber,
         providerId: parseInt(formData.providerId),
@@ -236,8 +231,7 @@ const AddInvoice = () => {
         dueDate: formData.dueDate,
         subtotal: formData.subtotal,
         tax: formData.tax,
-        discount: formData.discount,
-        total: formData.total,
+        total: formData.subtotal + formData.tax,
         description: itemsDescription,
         notes: formData.notes
       }
@@ -250,7 +244,7 @@ const AddInvoice = () => {
 
         if (response && response.id) {
           toast.success('Factura creada exitosamente')
-          navigate('/accounting/invoices')
+          navigate('/invoices')
         } else {
           throw new Error('Respuesta inválida del servidor')
         }
@@ -302,7 +296,7 @@ const AddInvoice = () => {
         </div>
         <div className="mt-4 sm:mt-0">
           <button
-            onClick={() => navigate('/accounting/invoices')}
+            onClick={() => navigate('/invoices')}
             className="btn btn-secondary"
           >
             <X className="h-4 w-4 mr-2" />
@@ -386,7 +380,7 @@ const AddInvoice = () => {
               </div>
             </div>
 
-            {/* Ítems de la factura - Sección más alta */}
+            {/* Ítems de la factura */}
             <div className="min-h-[600px]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-medium text-gray-900">Ítems de la Factura</h3>
@@ -406,9 +400,7 @@ const AddInvoice = () => {
                 </p>
               </div>
 
-              {/* Tabla: ocupa toda la altura del wrapper (la sección "Ítems de la Factura" tiene min-h) */}
               <div className="relative h-full" ref={tableWrapperRef}>
-                {/* Tabla con header fijo */}
                 <div className="overflow-x-auto">
                   <table className="table w-full">
                     <thead>
@@ -423,12 +415,7 @@ const AddInvoice = () => {
                   </table>
                 </div>
 
-                {/* Filas en contenedor que ocupa el resto de la altura y es scrollable.
-                    Ajusta el valor 56px si el header tiene otra altura */}
-                <div
-                  className="overflow-auto"
-                  style={{ height: 'calc(100% - 56px)' }}
-                >
+                <div className="overflow-auto" style={{ height: 'calc(100% - 56px)' }}>
                   <table className="table w-full">
                     <tbody>
                       {items.map((item, index) => (
@@ -495,7 +482,6 @@ const AddInvoice = () => {
                   </table>
                 </div>
 
-                {/* Dropdown de sugerencias (posicionado dentro del wrapper) */}
                 {selectedItemIndex !== null && filteredProducts.length > 0 && suggestionStyle && (
                   <div
                     style={{
@@ -536,7 +522,7 @@ const AddInvoice = () => {
               </div>
             </div>
 
-            {/* Resumen financiero */}
+            {/* Resumen financiero — ✅ SIN campo descuento */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-medium text-gray-900 mb-3">Resumen Financiero</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -549,21 +535,7 @@ const AddInvoice = () => {
                     <span className="text-gray-600">IVA (19%):</span>
                     <span className="font-medium">{formatCurrency(formData.tax)}</span>
                   </div>
-                  <div className="flex justify-between mb-2">
-                    <label className="text-gray-600">Descuento:</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1 text-gray-500">$</span>
-                      <input
-                        type="number"
-                        name="discount"
-                        value={formData.discount}
-                        onChange={handleInputChange}
-                        className="input pl-6 w-24 text-right"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>
+                  {/* ✅ ELIMINADO: campo input de descuento */}
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <div className="flex justify-between">
                       <span className="font-semibold text-gray-900">Total:</span>
@@ -591,7 +563,7 @@ const AddInvoice = () => {
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
-                onClick={() => navigate('/accounting/invoices')}
+                onClick={() => navigate('/invoices')}
                 className="btn btn-secondary"
               >
                 Cancelar

@@ -110,7 +110,7 @@ export const accountingService = {
   async createPayment(paymentData) {
     try {
       // El token ya se agrega automáticamente en el interceptor de axios
-      const response = await api.post('/payments', paymentData)
+      const response = await api.post('/invoices/payments', paymentData)
       
       // Si llegamos aquí, la petición fue exitosa (código 2xx)
       // Devolvemos los datos de la respuesta o un objeto de éxito genérico
@@ -141,15 +141,18 @@ export const accountingService = {
   },
 
   // Obtener pagos por factura
-  async getPaymentsByInvoice(invoiceId) {
-    try {
-      const response = await api.get(`/payments/invoice/${invoiceId}`)
-      return response.data
-    } catch (error) {
-      console.error('Error al obtener pagos de la factura:', error)
-      throw error
-    }
-  },
+  // ✅ CORREGIDO: los pagos vienen incluidos en la factura, 
+// no existe ruta separada /payments/invoice/:id
+async getPaymentsByInvoice(invoiceId) {
+  try {
+    const response = await api.get(`/invoices/${invoiceId}`)
+    // Los pagos vienen en invoice.payments
+    return response.data.payments || []
+  } catch (error) {
+    console.error('Error al obtener pagos de la factura:', error)
+    throw error
+  }
+},
 
   // ===== SERVICIOS DE REPORTES =====
 
