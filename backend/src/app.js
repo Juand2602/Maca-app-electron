@@ -19,7 +19,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // NUEVO: Servir archivos estáticos (imágenes de productos)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+const uploadsBaseDir = process.env.UPLOADS_DIR || path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsBaseDir));
 
 // Request logging (desarrollo)
 if (process.env.NODE_ENV !== 'production') {
@@ -185,7 +186,7 @@ const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   // NUEVO: Crear directorio de uploads si no existe
   const fs = require('fs');
-  const uploadDir = path.join(__dirname, '../uploads/products');
+  const uploadDir = path.join(uploadsBaseDir, 'products');
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
     console.log('📁 Directorio de uploads creado:', uploadDir);

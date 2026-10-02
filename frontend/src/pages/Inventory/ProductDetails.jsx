@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from "../../store/authStore";
 import useInventoryStore from "../../store/inventoryStore";
 import toast from "react-hot-toast";
+import { getImageUrl } from "../../utils/getImageUrl";
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -236,7 +237,7 @@ const ProductDetails = () => {
             <div className="card-body">
               {product.imageUrl ? (
                 <img
-                  src={product.imageUrl}
+                  src={getImageUrl(product.imageUrl)}
                   alt={product.name}
                   className="w-full aspect-square object-cover rounded-lg border-2 border-gray-200"
                 />

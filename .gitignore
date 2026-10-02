@@ -28,6 +28,10 @@ database/*.db
 database/*.db-journal
 database/*.db-shm
 database/*.db-wal
+backend/database/*.db
+backend/database/*.db-journal
+backend/database/*.db-shm
+backend/database/*.db-wal
 *.sqlite
 *.sqlite3
 
@@ -67,6 +71,7 @@ dist-electron/
 release/
 out/
 .webpack/
+node-portable/
 
 # =====================================================
 # Sistema operativo

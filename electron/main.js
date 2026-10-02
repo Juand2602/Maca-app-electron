@@ -5,6 +5,7 @@ const { spawn } = require("child_process");
 const axios = require("axios");
 const log = require("electron-log");
 const fs = require("fs");
+const os = require("os");
 
 let mainWindow;
 let backendProcess;
@@ -106,10 +107,11 @@ function getNodeExecutable() {
   const isDev = !app.isPackaged;
 
   if (isDev) {
-    return process.platform === "win32" ? "node" : "node";
+    return "node";
   }
 
-  const nodePath = path.join(process.resourcesPath, "node", "node.exe");
+  const nodeBinaryName = process.platform === "win32" ? "node.exe" : "node";
+  const nodePath = path.join(process.resourcesPath, "node", nodeBinaryName);
   log.info("Looking for Node.js at:", nodePath);
 
   if (fs.existsSync(nodePath)) {
@@ -232,6 +234,20 @@ function getBackendNodeModules() {
   return path.join(process.resourcesPath, "backend", "node_modules");
 }
 
+function getUploadsPath() {
+  const isDev = !app.isPackaged;
+
+  const uploadsDir = isDev
+    ? path.join(__dirname, "../backend/uploads")
+    : path.join(app.getPath("userData"), "uploads");
+
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  return uploadsDir;
+}
+
 // ============= INICIALIZACIÓN DE BASE DE DATOS =============
 
 async function initializeDatabase() {
@@ -273,9 +289,9 @@ async function initializeDatabase() {
     const { execSync } = require("child_process");
     const nodeExe = getNodeExecutable();
     const prismaBin = path.join(nodeModulesPath, ".bin", "prisma");
+    const prismaBinPath = process.platform === "win32" ? `${prismaBin}.cmd` : prismaBin;
 
-    const prismaExists =
-      fs.existsSync(prismaBin) || fs.existsSync(prismaBin + ".cmd");
+    const prismaExists = fs.existsSync(prismaBinPath);
     if (!prismaExists) {
       log.error("❌ Prisma CLI not found");
       return;
@@ -283,7 +299,7 @@ async function initializeDatabase() {
 
     log.info("Applying database migrations...");
 
-    const migrateCmd = `"${prismaBin}.cmd" migrate deploy --schema="${schemaPath}"`;
+    const migrateCmd = `"${prismaBinPath}" migrate deploy --schema="${schemaPath}"`;
 
     try {
       execSync(migrateCmd, {
@@ -321,7 +337,7 @@ prisma.user.count()
   .then(() => process.exit(1));
 `;
 
-      const tempFile = path.join(backendDir, "temp-check.js");
+      const tempFile = path.join(os.tmpdir(), "sistema-calzado-seed-check.js");
       fs.writeFileSync(tempFile, checkScript);
 
       try {
@@ -379,11 +395,13 @@ async function startBackend() {
       const backendScript = getBackendPath();
       const databasePath = getDatabasePath();
       const nodeModulesPath = getBackendNodeModules();
+      const uploadsPath = getUploadsPath();
 
       log.info("Node executable:", nodeExe);
       log.info("Backend script:", backendScript);
       log.info("Database path:", databasePath);
       log.info("Node modules:", nodeModulesPath);
+      log.info("Uploads path:", uploadsPath);
 
       const backendDir = path.dirname(backendScript);
 
@@ -394,6 +412,7 @@ async function startBackend() {
         PORT: BACKEND_PORT.toString(),
         NODE_ENV: isDev ? "development" : "production",
         DATABASE_URL: `file:${normalizedDbPath}`,
+        UPLOADS_DIR: uploadsPath,
         NODE_PATH: nodeModulesPath,
         PATH: `${path.join(nodeModulesPath, ".bin")}${path.delimiter}${
           process.env.PATH
@@ -518,6 +537,23 @@ function stopBackend() {
 // ============= WINDOWS =============
 
 function createSplashWindow() {
+  const isDev = !app.isPackaged;
+  const logoPath = isDev
+    ? path.join(__dirname, "../frontend/public/logo-maca.png")
+    : path.join(__dirname, "../frontend/dist/logo-maca.png");
+
+  // La ventana del splash se carga como data: URL, y Chromium no permite
+  // que un documento data: cargue un recurso file:// como subrecurso
+  // ("Not allowed to load local resource"). Se incrusta el logo como
+  // base64 para que quede en el mismo documento, sin petición aparte.
+  let logoUrl = "";
+  try {
+    const logoBase64 = fs.readFileSync(logoPath).toString("base64");
+    logoUrl = `data:image/png;base64,${logoBase64}`;
+  } catch (error) {
+    log.error("❌ No se pudo cargar el logo del splash:", error.message);
+  }
+
   const splash = new BrowserWindow({
     width: 400,
     height: 350,
@@ -537,25 +573,23 @@ function createSplashWindow() {
         body {
           width: 100vw; height: 100vh;
           display: flex; justify-content: center; align-items: center;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: #ffffff;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        .container { text-align: center; color: white; }
+        .container { text-align: center; }
         .logo {
-          width: 100px; height: 100px; background: white;
-          border-radius: 20px; margin: 0 auto 20px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 48px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          width: 130px; margin: 0 auto 24px;
         }
-        h1 { font-size: 24px; margin-bottom: 10px; }
-        p { font-size: 14px; opacity: 0.9; }
+        .logo img { width: 100%; height: auto; display: block; }
+        h1 { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+        p { font-size: 14px; color: #6b7280; }
         .loader {
           width: 150px; height: 3px;
-          background: rgba(255,255,255,0.3);
-          border-radius: 2px; margin: 20px auto; overflow: hidden;
+          background: #e5e7eb;
+          border-radius: 2px; margin: 24px auto 0; overflow: hidden;
         }
         .loader-bar {
-          height: 100%; background: white;
+          height: 100%; background: #111827;
           animation: loading 1.5s ease-in-out infinite;
         }
         @keyframes loading {
@@ -567,8 +601,8 @@ function createSplashWindow() {
     </head>
     <body>
       <div class="container">
-        <div class="logo">👟</div>
-        <h1>Sistema Calzado</h1>
+        <div class="logo"><img src="${logoUrl}" alt="Maca" /></div>
+        <h1>Sistema Administrativo</h1>
         <p>Iniciando aplicación...</p>
         <div class="loader"><div class="loader-bar"></div></div>
       </div>

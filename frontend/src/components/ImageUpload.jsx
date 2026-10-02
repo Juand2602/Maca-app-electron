@@ -2,10 +2,11 @@ import { useState, useRef } from 'react'
 import { Upload, X, Image as ImageIcon } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { getImageUrl } from '../utils/getImageUrl'
 
 const ImageUpload = ({ value, onChange }) => {
   const [uploading, setUploading] = useState(false)
-  const [preview, setPreview] = useState(value || null)
+  const [preview, setPreview] = useState(value ? getImageUrl(value) : null)
   const fileInputRef = useRef(null)
 
   const handleFileSelect = async (e) => {

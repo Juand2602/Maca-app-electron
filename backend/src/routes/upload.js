@@ -7,7 +7,8 @@ const fs = require('fs');
 const { authenticate } = require('../middleware/auth');
 
 // Crear directorio de uploads si no existe
-const uploadDir = path.join(__dirname, '../../uploads/products');
+const uploadsBaseDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
+const uploadDir = path.join(uploadsBaseDir, 'products');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
